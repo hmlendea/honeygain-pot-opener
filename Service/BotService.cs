@@ -23,7 +23,7 @@ namespace HoneygainPotOpener.Service
         {
             IEnumerable<LogInfo> logInfos =
             [
-                new(MyLogInfoKey.Username, settings.Username)
+                new(MyLogInfoKey.Username, settings.EmailAddress)
             ];
 
             logger.Info(
@@ -54,7 +54,7 @@ namespace HoneygainPotOpener.Service
         {
             IEnumerable<LogInfo> logInfos =
             [
-                new(MyLogInfoKey.Username, settings.Username)
+                new(MyLogInfoKey.Username, settings.EmailAddress)
             ];
 
             logger.Info(
