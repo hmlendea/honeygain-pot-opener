@@ -23,6 +23,8 @@ namespace HoneygainPotOpener.Processors.HoneygainProcessor
         {
             webProcessor.GoToUrl(LogInUrl);
 
+            AcceptCookiesIfNeeded();
+
             string emailAddressInputSelector = Select.ById("email");
             string passwordInputSelector = Select.ById("password");
             string logInButtonSelector = Select.ByXPath("//form/button");
@@ -38,6 +40,18 @@ namespace HoneygainPotOpener.Processors.HoneygainProcessor
         public void OpenPot()
         {
             throw new NotImplementedException();
+        }
+
+        private void AcceptCookiesIfNeeded()
+        {
+            string acceptSelectedCookiesButtonSelector = Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]");
+
+            webProcessor.WaitForElementToBeVisible(acceptSelectedCookiesButtonSelector);
+
+            if (webProcessor.IsElementVisible(acceptSelectedCookiesButtonSelector))
+            {
+                webProcessor.Click(acceptSelectedCookiesButtonSelector);
+            }
         }
     }
 }
