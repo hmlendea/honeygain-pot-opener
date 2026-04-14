@@ -1,4 +1,4 @@
-namespace HoneygainPotOpener.Processors.HoneygainProcessor
+namespace HoneygainPotOpener.Processors
 {
     public interface IHoneygainProcessor
     {

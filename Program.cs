@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,9 +10,8 @@ using NuciWeb.Automation.Selenium;
 using OpenQA.Selenium;
 
 using HoneygainPotOpener.Configuration;
-using HoneygainPotOpener.Logging;
 using HoneygainPotOpener.Service;
-using HoneygainPotOpener.Processors.HoneygainProcessor;
+using HoneygainPotOpener.Processors;
 
 namespace HoneygainPotOpener
 {

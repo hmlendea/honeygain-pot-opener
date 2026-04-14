@@ -1,16 +1,14 @@
-using NuciLog.Core;
 using NuciWeb.Automation;
 
 using HoneygainPotOpener.Configuration;
 using System;
 using NuciWeb;
 
-namespace HoneygainPotOpener.Processors.HoneygainProcessor
+namespace HoneygainPotOpener.Processors
 {
     public sealed class HoneygainProcessor(
         IWebProcessor webProcessor,
-        BotSettings settings,
-        ILogger logger)
+        BotSettings settings)
         : IHoneygainProcessor
     {
         public static string HomePageUrl => "https://honeygain.com";
