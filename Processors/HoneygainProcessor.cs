@@ -39,7 +39,16 @@ namespace HoneygainPotOpener.Processors.HoneygainProcessor
 
         public void OpenPot()
         {
-            throw new NotImplementedException();
+            string openPotButtonSelector = Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
+
+            webProcessor.WaitForElementToBeVisible(openPotButtonSelector);
+
+            if (!webProcessor.IsElementVisible(openPotButtonSelector))
+            {
+                throw new InvalidOperationException("The Lucky Pot cannot be opened at this time.");
+            }
+
+            webProcessor.Click(openPotButtonSelector);
         }
 
         private void AcceptCookiesIfNeeded()

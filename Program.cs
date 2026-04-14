@@ -63,6 +63,10 @@ namespace HoneygainPotOpener
             {
                 logger.Fatal(Operation.Unknown, OperationStatus.Failure, ex);
             }
+            finally
+            {
+                webDriver.Quit();
+            }
         }
 
         static IConfiguration LoadConfiguration() => new ConfigurationBuilder()
