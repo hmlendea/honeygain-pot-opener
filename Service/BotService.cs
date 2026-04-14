@@ -1,7 +1,7 @@
 using NuciLog.Core;
 
 using HoneygainPotOpener.Logging;
-using HoneygainPotOpener.Processors.HoneygainProcessor;
+using HoneygainPotOpener.Processors;
 using System.Collections.Generic;
 using HoneygainPotOpener.Configuration;
 using System;
