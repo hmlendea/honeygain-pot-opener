@@ -16,6 +16,7 @@ namespace HoneygainPotOpener.Service
         public void Run()
         {
             LogIn();
+            ClaimReward();
             OpenPot();
         }
 
@@ -46,6 +47,37 @@ namespace HoneygainPotOpener.Service
 
             logger.Info(
                 MyOperation.LogIn,
+                OperationStatus.Success,
+                logInfos);
+        }
+
+        void ClaimReward()
+        {
+            IEnumerable<LogInfo> logInfos =
+            [
+                new(MyLogInfoKey.Username, settings.EmailAddress)
+            ];
+
+            logger.Info(
+                MyOperation.ClaimReward,
+                OperationStatus.Started,
+                logInfos);
+
+            try
+            {
+                processor.ClaimReward();
+            }
+            catch (Exception ex)
+            {
+                logger.Warn(
+                    MyOperation.ClaimReward,
+                    OperationStatus.Failure,
+                    ex,
+                    logInfos);
+            }
+
+            logger.Info(
+                MyOperation.ClaimReward,
                 OperationStatus.Success,
                 logInfos);
         }

@@ -2,7 +2,7 @@
 
 # Honeygain Pot Opener
 
-Small .NET console app that logs into Honeygain and attempts to open the daily Lucky Pot automatically.
+Small .NET console app that logs into Honeygain, optionally claims available reward(s), and attempts to open the daily Lucky Pot.
 
 ## What It Does
 
@@ -12,7 +12,8 @@ The app performs the following flow:
 2. Accepts cookies if the cookie banner is shown.
 3. Logs in with the configured credentials.
 4. Waits for dashboard content.
-5. Clicks the "Open Lucky Pot" button.
+5. Tries to claim any available achievement reward (if present).
+6. Clicks the "Open Lucky Pot" button.
 
 ## Requirements
 

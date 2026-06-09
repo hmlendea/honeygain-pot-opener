@@ -4,6 +4,8 @@ namespace HoneygainPotOpener.Processors
     {
         public void LogIn();
 
+        public void ClaimReward();
+
         public void OpenPot();
     }
 }
