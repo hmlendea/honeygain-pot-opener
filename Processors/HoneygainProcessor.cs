@@ -35,6 +35,18 @@ namespace HoneygainPotOpener.Processors
             webProcessor.WaitForElementToBeVisible(trafficLegendContainerSelector);
         }
 
+        public void ClaimReward()
+        {
+            string claimRewardButtonSelector = Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
+
+            if (!webProcessor.IsElementVisible(claimRewardButtonSelector))
+            {
+                throw new InvalidOperationException("There is no reward available to be claimed at this time.");
+            }
+
+            webProcessor.Click(claimRewardButtonSelector);
+        }
+
         public void OpenPot()
         {
             string openPotButtonSelector = Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
