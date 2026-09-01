@@ -36,6 +36,7 @@ A .NET console application that authenticates with Honeygain, claims an availabl
   - [Dependencies](#dependencies)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
+- [Security](#security)
 - [Project Engagement](#project-engagement)
 - [License](#license)
 
@@ -227,6 +228,10 @@ When doing so, please:
 - Submit focused pull requests that conform to the existing code style
 - Maintain your branch synchronised with `master`
 - Revise the documentation when functionality changes
+
+## 🛡️ Security
+
+Report security vulnerabilities through the private procedure in [SECURITY.md](./SECURITY.md). Do not disclose suspected vulnerabilities publicly before maintainers have an opportunity to validate and remediate them.
 
 ## 💝 Project Engagement
 
