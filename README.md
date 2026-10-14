@@ -229,6 +229,8 @@ When doing so, please:
 - Maintain your branch synchronised with `master`
 - Revise the documentation when functionality changes
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on reporting issues, suggesting enhancements, and submitting code changes.
+
 ## 🛡️ Security
 
 Report security vulnerabilities through the private procedure in [SECURITY.md](./SECURITY.md). Do not disclose suspected vulnerabilities publicly before maintainers have an opportunity to validate and remediate them.
