@@ -235,6 +235,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on reporting issu
 
 Report security vulnerabilities through the private procedure in [SECURITY.md](./SECURITY.md). Do not disclose suspected vulnerabilities publicly before maintainers have an opportunity to validate and remediate them.
 
+## 🛡️ Privacy
+
+See [PRIVACY.md](./PRIVACY.md) for details on how personal data is handled.
+
 ## 💝 Project Engagement
 
 Discovered a problem or have a suggestion? [Open an issue](https://github.com/hmlendea/honeygain-pot-opener/issues)!
