@@ -231,6 +231,8 @@ When doing so, please:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on reporting issues, suggesting enhancements, and submitting code changes.
 
+This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## 🛡️ Security
 
 Report security vulnerabilities through the private procedure in [SECURITY.md](./SECURITY.md). Do not disclose suspected vulnerabilities publicly before maintainers have an opportunity to validate and remediate them.
