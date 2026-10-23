@@ -7,7 +7,7 @@
 | Layer | Count | Framework | Scope |
 |-------|-------|-----------|-------|
 | Unit | ~30 | NUnit 5 + Moq | Individual classes, mocked dependencies |
-| Integration | 0 | — | Not implemented |
+| Integration | 11 | NUnit 5 + Moq | JSON binding, dependency injection, and real service/processor pipeline |
 | E2E | 0 | — | Not implemented (requires live Honeygain) |
 
 ### Principles
@@ -33,6 +33,22 @@ HoneygainPotOpener.UnitTests/
 └── Service/
     └── BotServiceTests.cs
 ```
+
+## Integration Tests
+
+The dedicated [integration-test project](../HoneygainPotOpener.IntegrationTests/HoneygainPotOpener.IntegrationTests.csproj) runs the real orchestration service and Honeygain processor together, resolved through dependency injection with JSON-bound credentials. Only the browser and logger boundaries are mocked; no browser installation, live Honeygain account, network access, or credentials are required.
+
+The [pipeline tests](../HoneygainPotOpener.IntegrationTests/Service/BotServiceTests.cs) cover:
+- All eight combinations of cookie-consent, reward, and Lucky Pot availability.
+- Browser command ordering and credential propagation from configuration to login fields.
+- Navigation failure with continued reward and pot processing.
+- Reward-click failure with continued pot processing.
+- Pot-wait failure without subsequent inspection or click.
+- Failure severity and the current behaviour of emitting success after caught failures.
+
+Run this suite independently with `dotnet test HoneygainPotOpener.IntegrationTests/HoneygainPotOpener.IntegrationTests.csproj`.
+
+These are component integration tests, not real-WebDriver or live-dashboard tests. They do not verify production startup, browser cleanup, real DOM selector compatibility, or log destination output.
 
 ## Unit Tests
 
