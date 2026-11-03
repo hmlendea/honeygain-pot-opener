@@ -9,7 +9,6 @@ A .NET console application that authenticates with Honeygain, claims an availabl
 
 ## 📑 Table of Contents
 
-- [Table of Contents](#table-of-contents)
 - [Capabilities](#capabilities)
 - [Usage](#usage)
 - [Known Limitations](#known-limitations)
@@ -31,11 +30,21 @@ A .NET console application that authenticates with Honeygain, claims an availabl
   - [Setup](#setup)
   - [Build](#build)
   - [Run](#run)
+  - [Test](#test)
   - [Continuous Integration](#continuous-integration)
   - [Release](#release)
   - [Dependencies](#dependencies)
+- [GitHub Actions](#github-actions)
+- [Project Structure](#project-structure)
+  - [Projects and Packages](#projects-and-packages)
+  - [Directories](#directories)
+- [Architecture](#architecture)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
 - [Contributing](#contributing)
+- [Code of Conduct](#code-of-conduct)
 - [Security](#security)
 - [Project Engagement](#project-engagement)
 - [License](#license)
@@ -53,7 +62,7 @@ A .NET console application that authenticates with Honeygain, claims an availabl
 Populate the credential settings in `appsettings.json`, then execute one automation pass from the repository root:
 
 ```bash
-dotnet run --project HoneygainPotOpener.csproj
+dotnet run --project HoneygainPotOpener/HoneygainPotOpener.csproj
 ```
 
 The application exits after the reward and Lucky Pot operations have been attempted.
@@ -119,9 +128,9 @@ Honeygain credentials are read directly from `appsettings.json`. Keep populated 
 | Component | Supported Versions | Notes |
 |-----------|--------------------|-------|
 | .NET | 10.0 | Required when compiling or executing from source. |
-| Linux | `arm`, `arm64`, `x64` | Published v1.1.0 release archives are available. |
-| macOS | `arm64`, `x64` | Published v1.1.0 release archives are available. |
-| Windows | `arm64`, `x64` | Published v1.1.0 release archives are available. |
+| Linux | `arm`, `arm64`, `x64` | Published v1.1.2 release archives are available. |
+| macOS | `arm64`, `x64` | Published v1.1.2 release archives are available. |
+| Windows | `arm64`, `x64` | Published v1.1.2 release archives are available. |
 
 ## 🔌 Integrations
 
@@ -134,6 +143,10 @@ Honeygain credentials are read directly from `appsettings.json`. Keep populated 
 The application authenticates directly with the Honeygain login form by using the e-mail address and password configured in `appsettings.json`. It does not define additional local roles or access scopes.
 
 ## 🛡️ Privacy and Data
+
+Honeygain Pot Opener processes Honeygain credentials for authentication and records the configured e-mail address in operation logs when file output is enabled.
+
+For the detailed description of how the application handles privacy and personal data, see [PRIVACY.md](./PRIVACY.md).
 
 | Data | Purpose | Storage | Retention | Optional |
 |------|---------|---------|-----------|----------|
@@ -176,19 +189,25 @@ dotnet build --no-restore
 ### Run
 
 ```bash
-dotnet run --project HoneygainPotOpener.csproj
+dotnet run --project HoneygainPotOpener/HoneygainPotOpener.csproj
+```
+
+### Test
+
+```bash
+dotnet test --no-build --verbosity normal
 ```
 
 ### Continuous Integration
 
-The `.github/workflows/dotnet.yml` workflow restores dependencies, compiles the project, and invokes `dotnet test` with .NET 10.x for pushes and pull requests to `master`.
+The [.github/workflows/dotnet.yml](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/dotnet.yml) workflow restores dependencies, compiles the solution, and invokes `dotnet test` with .NET 10.x for pushes and pull requests to `master`.
 
 ### Release
 
 The repository includes `release.sh`, which delegates to the upstream deployment script used by the project maintainer.
 
 ```bash
-bash ./release.sh 1.1.0
+bash ./release.sh 1.1.2
 ```
 
 This script downloads and executes an external release helper from `https://raw.githubusercontent.com/hmlendea/deployment-scripts/master/release/dotnet/10.0.sh`.
@@ -199,16 +218,64 @@ This script downloads and executes an external release helper from `https://raw.
 
 | Package | Version | Scope | Purpose |
 |---------|---------|-------|---------|
-| `Microsoft.Extensions.Configuration` | 10.0.5 | Runtime | Provides the configuration abstraction. |
-| `Microsoft.Extensions.Configuration.Binder` | 10.0.5 | Runtime | Binds configuration sections to settings objects. |
-| `Microsoft.Extensions.Configuration.FileExtensions` | 10.0.5 | Runtime | Supplies file-based configuration support. |
-| `Microsoft.Extensions.Configuration.Json` | 10.0.5 | Runtime | Reads settings from `appsettings.json`. |
-| `Microsoft.Extensions.DependencyInjection` | 10.0.5 | Runtime | Constructs and resolves application services. |
-| `NuciLog` | 1.2.0 | Runtime | Integrates NuciLog with application configuration. |
-| `NuciLog.Core` | 2.6.0 | Runtime | Provides structured application logging. |
-| `NuciWeb` | 4.0.0 | Runtime | Provides web selector utilities. |
-| `NuciWeb.Automation` | 1.0.0 | Runtime | Provides browser automation abstractions. |
-| `NuciWeb.Automation.Selenium` | 1.0.1 | Runtime | Implements browser automation through Selenium. |
+| `Microsoft.Extensions.Configuration` | `10.0.13` | Runtime | Provides the configuration abstraction. |
+| `Microsoft.Extensions.Configuration.Binder` | `10.0.13` | Runtime | Binds configuration sections to settings objects. |
+| `Microsoft.Extensions.Configuration.FileExtensions` | `10.0.13` | Runtime | Supplies file-based configuration support. |
+| `Microsoft.Extensions.Configuration.Json` | `10.0.13` | Runtime | Reads settings from `appsettings.json`. |
+| `Microsoft.Extensions.DependencyInjection` | `10.0.13` | Runtime | Constructs and resolves application services. |
+| `NuciLog` | `1.2.1` | Runtime | Integrates NuciLog with application configuration. |
+| `NuciLog.Core` | `3.1.0` | Runtime | Provides structured application logging. |
+| `NuciWeb` | `4.1.0` | Runtime | Provides web selector utilities. |
+| `NuciWeb.Automation` | `1.0.1` | Runtime | Provides browser automation abstractions. |
+| `NuciWeb.Automation.Selenium` | `1.0.3` | Runtime | Implements browser automation through Selenium. |
+
+## ⚙️ GitHub Actions
+
+| Workflow | Purpose | What it does |
+|----------|---------|--------------|
+| [.NET](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/dotnet.yml) | Continuous integration | Restores dependencies, builds the solution, and runs all tests on pushes and pull requests to `master`. |
+
+## 🗂️ Project Structure
+
+The solution contains the console application and separate unit, integration, and architecture test projects.
+
+### Projects and Packages
+
+| Project | Type | Purpose |
+|---------|------|---------|
+| `HoneygainPotOpener/` | Console application | Authenticates with Honeygain and performs the reward and Lucky Pot operations. |
+| `HoneygainPotOpener.UnitTests/` | Unit tests | Tests configuration, logging, processors, and services. |
+| `HoneygainPotOpener.IntegrationTests/` | Integration tests | Tests service-level integration behaviour. |
+| `HoneygainPotOpener.ArchitectureTests/` | Architecture tests | Verifies architectural constraints. |
+
+### Directories
+
+| Directory | Purpose |
+|-----------|---------|
+| `docs/` | Detailed architecture, behaviour, configuration, operations, and testing documentation. |
+| `.github/workflows/` | Continuous-integration workflow definitions. |
+
+## 🏗️ Architecture
+
+Honeygain Pot Opener is a dependency-injected, synchronous console pipeline with a composition root, an orchestration service, and a browser-integration adapter.
+
+See the [architecture documentation](./ARCHITECTURE.md) for the system context, principal components, runtime flows, ownership boundaries, dependencies, constraints, and extension points.
+
+## 🚢 Deployment
+
+Honeygain Pot Opener is a self-hosted console application. Operators deploy a published release archive or build the application from source, provide local configuration, and invoke one automation pass from the extraction or working directory.
+
+## 📚 Documentation
+
+The repository contains detailed documentation for architecture, behaviour, configuration, operations, testing, and maintenance.
+
+| Resource | Description |
+|----------|-------------|
+| [Documentation index](./docs/INDEX.md) | Catalogue of the repository documentation. |
+| [Quick start](./docs/quick-start.md) | Getting started guidance. |
+| [Configuration](./docs/configuration.md) | Configuration schema and runtime behaviour. |
+| [Testing](./docs/testing.md) | Test strategy and organisation. |
+| [Build and deployment](./docs/build-and-deployment.md) | Build, release, and deployment details. |
 
 ## 🩺 Troubleshooting
 
@@ -219,6 +286,10 @@ This script downloads and executes an external release helper from `https://raw.
 | No reward is claimed | Honeygain does not present a claimable achievement reward. | No action is required; the application records a warning and continues to the Lucky Pot. |
 | The Lucky Pot is not opened | The pot is unavailable or Honeygain revised its dashboard interface. | Confirm availability in the dashboard, enable debug mode, and inspect the operation log. |
 
+## ❓ FAQ
+
+See the [Frequently Asked Questions](./docs/faq.md) for responses to frequently raised inquiries.
+
 ## 🤝 Contributing
 
 You are welcome to submit any suggestion, feedback, or modification to this project.
@@ -228,28 +299,31 @@ When doing so, please:
 - Submit focused pull requests that conform to the existing code style
 - Maintain your branch synchronised with `master`
 - Revise the documentation when functionality changes
+- Properly test all modifications, including edge cases and error conditions
+- Include tests for additional or modified functionality
+- Raise a new [issue](https://github.com/hmlendea/honeygain-pot-opener/issues) for problems or suggestions
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on reporting issues, suggesting enhancements, and submitting code changes.
+See the [contributing guidelines](./CONTRIBUTING.md) for details on how to report issues, suggest enhancements, and submit changes.
 
-This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+## 📜 Code of Conduct
 
-## 🛡️ Security
+See the [Code of Conduct](./CODE_OF_CONDUCT.md) for the standards of conduct expected in all project spaces.
 
-Report security vulnerabilities through the private procedure in [SECURITY.md](./SECURITY.md). Do not disclose suspected vulnerabilities publicly before maintainers have an opportunity to validate and remediate them.
+## 🔒 Security
 
-## 🛡️ Privacy
+Honeygain Pot Opener follows the current GitHub Release security policy for private, coordinated vulnerability reporting.
 
-See [PRIVACY.md](./PRIVACY.md) for details on how personal data is handled.
+For information on reporting security vulnerabilities, see [SECURITY.md](./SECURITY.md).
 
 ## 💝 Project Engagement
 
 Discovered a problem or have a suggestion? [Open an issue](https://github.com/hmlendea/honeygain-pot-opener/issues)!
 
-If you find this project useful, consider [funding it](https://hmlendea.go.ro/funding) or starring ⭐️ it on GitHub!
+If you find this project useful, consider funding it or starring ⭐️ it on GitHub!
 
 [![Donate](https://raw.githubusercontent.com/hmlendea/readme-assets/master/donate_generic.png)](https://hmlendea.go.ro/funding)
 
 ## 📄 License
 
 This project is being distributed under the `GNU General Public License v3.0`.
-See [LICENSE](./LICENSE) for further information.
+See [LICENSE](./LICENSE) for additional information.
