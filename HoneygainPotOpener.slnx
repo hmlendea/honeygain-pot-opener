@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="HoneygainPotOpener/HoneygainPotOpener.csproj" />
+  <Project Path="HoneygainPotOpener.ArchitectureTests/HoneygainPotOpener.ArchitectureTests.csproj" />
   <Project Path="HoneygainPotOpener.IntegrationTests/HoneygainPotOpener.IntegrationTests.csproj" />
   <Project Path="HoneygainPotOpener.UnitTests/HoneygainPotOpener.UnitTests.csproj" />
 </Solution>
