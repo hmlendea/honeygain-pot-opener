@@ -44,13 +44,11 @@ HoneygainProcessor.OpenPot()
         Button clicked, Lucky Pot opened
             │
             ▼
-catch (Exception ex)
+catch (Exception exception)
     │
-    ▼
-logger.Error(OpenPot, Failure, ex, Username)  ← ERROR LEVEL
-    │
-    ▼
-logger.Info(OpenPot, Success, Username)  ← ALWAYS LOGGED
+    ├─► logger.Error(OpenPot, Failure, exception, Username)  ← ERROR LEVEL
+    ├─► failedOperations.Add(OpenPot)
+    └─► return (success is not logged)
 ```
 
 ## Detailed Steps
@@ -131,30 +129,32 @@ webProcessor.Click(selector);
 - **Business logic failure** (not visible after wait) → `InvalidOperationException`
 - **Infrastructure failure** (click intercepted) → propagates from `IWebProcessor`
 
-### In BotService.OpenPot()
+### In BotService.ExecuteOperation(OpenPot)
 ```csharp
 try
 {
     processor.OpenPot();
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    logger.Error(MyOperation.OpenPot, OperationStatus.Failure, ex, logInfos);  // ERROR
+    LogFailure(operation, exception, isFailureExpected: false, logInfos);  // ERROR
+    failedOperations.Add(operation);
+    return;
 }
-logger.Info(MyOperation.OpenPot, OperationStatus.Success, logInfos);
+logger.Info(operation, OperationStatus.Success, logInfos);
 ```
 
 - **All exceptions caught** — including `InvalidOperationException` and timeouts
 - **Logged as Error** — pot opening is a primary objective
-- **Success logged anyway** — unconditional after catch
+- **Recorded as failure** — `OpenPot` is added to `ExecutionReport.FailedOperations`, so the process exits with code `1`
+- **Success skipped on failure** — the method returns before the success event
 
 ### Log Events
 
 | Sequence | Level | Operation | Status | Context |
 |----------|-------|-----------|--------|---------|
 | 1 | Info | OpenPot | Started | Username |
-| 2 | Error | OpenPot | Failure | Username + Exception (if failed) |
-| 3 | Info | OpenPot | Success | Username |
+| 2 | Error or Info | OpenPot | Failure or Success | Username + Exception (when failed) |
 
 ## Failure Scenarios
 

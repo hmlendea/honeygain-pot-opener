@@ -41,11 +41,22 @@ public sealed class HoneygainProcessor(
     BotSettings settings) : IHoneygainProcessor
 ```
 
-### Constants (URLs)
+### URL Properties
 ```csharp
 public static string HomePageUrl => "https://honeygain.com";
 public static string DashboardUrl => "https://dashboard.honeygain.com";
 public static string LogInUrl => $"{DashboardUrl}/login";
+```
+
+### Selector Properties
+```csharp
+private static string EmailAddressInputSelector => Select.ById("email");
+private static string PasswordInputSelector => Select.ById("password");
+private static string LogInButtonSelector => Select.ByXPath("//form/button");
+private static string DashboardReadySelector => Select.ById("traffic-legend-container");
+private static string CookiesConsentButtonSelector => Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]");
+private static string ClaimRewardButtonSelector => Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
+private static string OpenPotButtonSelector => Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
 ```
 
 ### Methods
@@ -56,16 +67,10 @@ public void LogIn()
 {
     webProcessor.GoToUrl(LogInUrl);
     AcceptCookiesIfNeeded();
+    EnterCredentials();
 
-    string emailAddressInputSelector = Select.ById("email");
-    string passwordInputSelector = Select.ById("password");
-    string logInButtonSelector = Select.ByXPath("//form/button");
-    string trafficLegendContainerSelector = Select.ById("traffic-legend-container");
-
-    webProcessor.SetText(emailAddressInputSelector, settings.EmailAddress);
-    webProcessor.SetText(passwordInputSelector, settings.Password);
-    webProcessor.Click(logInButtonSelector);
-    webProcessor.WaitForElementToBeVisible(trafficLegendContainerSelector);
+    webProcessor.Click(LogInButtonSelector);
+    webProcessor.WaitForElementToBeVisible(DashboardReadySelector);
 }
 ```
 
@@ -81,14 +86,13 @@ public void LogIn()
 ```csharp
 public void ClaimReward()
 {
-    string claimRewardButtonSelector = Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
-
-    if (!webProcessor.IsElementVisible(claimRewardButtonSelector))
+    if (!webProcessor.IsElementVisible(ClaimRewardButtonSelector))
     {
-        throw new InvalidOperationException("There is no reward available to be claimed at this time.");
+        throw new InvalidOperationException(
+            "There is no reward available to be claimed at this time.");
     }
 
-    webProcessor.Click(claimRewardButtonSelector);
+    webProcessor.Click(ClaimRewardButtonSelector);
 }
 ```
 
@@ -101,16 +105,15 @@ public void ClaimReward()
 ```csharp
 public void OpenPot()
 {
-    string openPotButtonSelector = Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
+    webProcessor.WaitForElementToBeVisible(OpenPotButtonSelector);
 
-    webProcessor.WaitForElementToBeVisible(openPotButtonSelector);
-
-    if (!webProcessor.IsElementVisible(openPotButtonSelector))
+    if (!webProcessor.IsElementVisible(OpenPotButtonSelector))
     {
-        throw new InvalidOperationException("The Lucky Pot cannot be opened at this time.");
+        throw new InvalidOperationException(
+            "The Lucky Pot cannot be opened at this time.");
     }
 
-    webProcessor.Click(openPotButtonSelector);
+    webProcessor.Click(OpenPotButtonSelector);
 }
 ```
 

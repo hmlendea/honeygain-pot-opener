@@ -4,31 +4,21 @@
 
 ### 1. Success Logging Semantics
 
-**Ambiguity:** Each operation logs `Success` unconditionally after the catch block, even when the operation failed.
+**Resolved:** Each operation now logs exactly one terminal event: `Success` when the processor call returns, or `Failure` when it throws. `BotService.ExecuteOperation` returns immediately after recording a failure.
 
 ```csharp
-try { processor.Method(); }
-catch { logger.Error/Warn(Failure); }
-logger.Info(Success);  // Always executed
+try { action(); }
+catch { LogFailure(...); return; }
+logger.Info(operation, OperationStatus.Success, logInfos);
 ```
 
-**Questions:**
-- Is this intentional for "operation attempted" tracking?
-- Should `Success` only log on actual success?
-- How do consumers distinguish "attempted" from "succeeded"?
-
-**Current Behaviour:** Success = "operation block completed", not "operation succeeded"
+**Current Behaviour:** Success is recorded only for completed operations.
 
 ### 2. ClaimReward Warning vs Error
 
-**Ambiguity:** `ClaimReward` failure logs at `Warn` level; `LogIn` and `OpenPot` at `Error`.
+**Resolved:** `ClaimReward` failure remains a `Warn`, and the operation is marked as having an expected failure. `LogIn` and `OpenPot` failures log `Error` and are recorded in `ExecutionReport.FailedOperations`, which drives the exit code.
 
-**Questions:**
-- Is "no reward available" truly a warning (expected) vs error (unexpected)?
-- Should all failures be `Error` for alerting consistency?
-- Does `Warn` suppress alerts in monitoring systems?
-
-**Current Behaviour:** `Warn` for ClaimReward, `Error` for others
+**Current Behaviour:** `Warn` and expected for ClaimReward; `Error` and recorded for the others.
 
 ### 3. Single Account Only
 
@@ -85,16 +75,13 @@ logger.Info(Success);  // Always executed
 
 **Current Behaviour:** Plain email in every operation log
 
-### 8. No Configuration Validation
+### 8. Configuration Validation
 
-**Ambiguity:** Missing/invalid config detected at point of use, not startup.
+**Resolved for required fields:** `Program.Main` evaluates `BotSettings.HasValidCredentials` after binding and aborts with a diagnostic message and exit code `1` before creating any browser.
 
-**Questions:**
-- Should startup validate required fields?
-- Fail fast with clear message vs fail at use with Selenium exception?
-- Use data annotations or custom validation?
+**Remaining:** Value-specific validation, such as e-mail format or Honeygain account validity, is still detected at the point of use.
 
-**Current Behaviour:** No validation; fails at `SetText(null)` or login
+**Current Behaviour:** Presence validation at startup; format and account validation at use
 
 ### 9. Log Retention / Rotation
 
@@ -109,14 +96,12 @@ logger.Info(Success);  // Always executed
 
 ### 10. Exit Codes
 
-**Ambiguity:** `Main` returns `void` → always exit code 0 (unless unguarded crash).
+**Resolved:** `Program.Main` sets `Environment.ExitCode` from `ExecutionReport.IsSuccessful` and from the guarded exception handlers.
 
-**Questions:**
-- Should exit code reflect operation success/failure?
-- What codes for: all succeeded, some failed, all failed, config error?
-- How should schedulers interpret exit codes?
+- `0` when no unexpected operation failed, including when the reward was simply unavailable.
+- `1` on an unexpected `LogIn` or `OpenPot` failure, a guarded exception, or incomplete credentials.
 
-**Current Behaviour:** Always 0 (success) for guarded path
+**Current Behaviour:** Exit code reflects whether the pass completed.
 
 ## Open Questions
 
@@ -141,7 +126,7 @@ logger.Info(Success);  // Always executed
 
 ### 3. Headless Mode Detection
 
-**Question:** Does `WebDriverInitialiser.Initialise(headless)` properly configure headless Chrome?
+**Question:** Does `WebDriverInitialiser.InitialiseAvailableWebDriver(isDebugMode)` properly configure headless Chrome when debug mode is disabled?
 
 **Concerns:** Some sites detect headless and block. May need `--disable-blink-features=AutomationControlled`.
 
@@ -213,16 +198,13 @@ logger.Info(Success);  // Always executed
 
 | # | Question | Priority | Owner |
 |---|----------|----------|-------|
-| 1 | Fix success logging semantics? | High | Maintainer |
-| 2 | Add startup config validation? | High | Maintainer |
-| 3 | Add retry logic for transient failures? | Medium | Maintainer |
-| 4 | Hash email in logs? | Medium | Maintainer |
-| 5 | Investigate Honeygain API? | Medium | Maintainer |
-| 6 | Add log rotation? | Low | Maintainer |
-| 7 | Define exit codes? | Low | Maintainer |
-| 8 | Multi-account support? | Low | Maintainer |
-| 9 | SecureString for password? | Low | Maintainer |
-| 10 | Metrics/health endpoints? | Low | Maintainer |
+| 1 | Add retry logic for transient failures? | Medium | Maintainer |
+| 2 | Hash email in logs? | Medium | Maintainer |
+| 3 | Investigate Honeygain API? | Medium | Maintainer |
+| 4 | Add log rotation? | Low | Maintainer |
+| 5 | Multi-account support? | Low | Maintainer |
+| 6 | SecureString for password? | Low | Maintainer |
+| 7 | Metrics/health endpoints? | Low | Maintainer |
 
 ## Related Documentation
 

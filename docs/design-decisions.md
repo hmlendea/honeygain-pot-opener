@@ -46,25 +46,26 @@
 - `HoneygainProcessor` depends on `IWebProcessor` (not `SeleniumWebProcessor`)
 - Tests mock `IHoneygainProcessor` and `IWebProcessor`
 
-## 4. Best-Effort Continuation with Unconditional Success Logging
+## 4. Best-Effort Continuation with Exclusive Success or Failure Status
 
-**Decision:** Each operation (`LogIn`, `ClaimReward`, `OpenPot`) is attempted regardless of prior failures. Success is logged unconditionally after the `catch` block.
+**Decision:** Each operation (`LogIn`, `ClaimReward`, `OpenPot`) is attempted regardless of prior failures. Exactly one terminal event is logged: `Success` when the processor call returns, or `Failure` when it throws.
 
 **Rationale:**
 - Maximises the chance of completing all operations in a single run
 - A failed login should not prevent reward claim or pot opening attempts (though they will likely fail too)
-- Simple, predictable control flow
+- A success event becomes reliable evidence that the operation completed
 
 **Consequences:**
-- **Log reliability issue:** A "Success" log entry does not guarantee the operation completed successfully — it is logged even after an exception was caught and logged
-- Tests explicitly verify this behaviour: `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues` confirms success is logged after error
+- `Success` is only recorded after a normal return, so log-derived success reflects completion
+- Unexpected failures (`LogIn`, `OpenPot`) are collected in `ExecutionReport.FailedOperations` and drive the exit code
+- Tests verify both directions: `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues` and `GivenRun_WhenAllSucceed_ThenReportsSuccess`
 
-**Evidence:** `BotService.LogIn()`, `BotService.ClaimReward()`, `BotService.OpenPot()` all follow the pattern:
+**Evidence:** `BotService.ExecuteOperation` follows the pattern:
 ```
 logger.Info(Started)
-try { processor.Method() }
-catch { logger.Error/Warn(Failure, ex) }
-logger.Info(Success)  // unconditional
+try { action() }
+catch { LogFailure(Failure, ex); return; }
+logger.Info(Success)
 ```
 
 ## 5. Singleton Lifetime for Processor and Service
@@ -107,19 +108,20 @@ config.Bind(nameof(BotSettings), botSettings);
 config.Bind(nameof(DebugSettings), debugSettings);
 ```
 
-## 7. No Exit Code on Failure
+## 7. Exit Code Reflects Execution Outcome
 
-**Decision:** `Program.Main` does not set an exit code. The process exits 0 even when operations fail (as long as exceptions are caught).
+**Decision:** `Program.Main` sets `Environment.ExitCode` from the `ExecutionReport` returned by `IBotService.Run`.
 
 **Rationale:**
-- Failures are logged and the process continues — exit code 0 indicates "process completed" not "all operations succeeded"
-- External schedulers can inspect logs for actual operation outcomes
+- External schedulers can distinguish a complete pass from an incomplete one without parsing logs
+- Expected reward absence is not a failure, so it does not change the exit code
+- Login and pot failures both indicate the automation pass did not fully achieve its objectives
 
 **Consequences:**
-- External schedulers cannot use exit code alone to detect failures
-- Must parse logs or check Honeygain dashboard for actual results
+- `0` means no unexpected operation failed; `1` means `LogIn` or `OpenPot` failed, a guarded exception occurred, or credentials were incomplete
+- `ClaimReward` failure alone still exits `0`
 
-**Evidence:** `Program.Main` has no `Environment.Exit` or return value; `Main` returns `void`.
+**Evidence:** `Program.ResolveExitCode`, `Program.RunBot`, and `ExecutionReport.IsSuccessful`; `Main` declares no parameters and writes `Environment.ExitCode` before returning.
 
 ## 8. WebDriver Initialisation Before DI Container
 
@@ -138,6 +140,8 @@ config.Bind(nameof(DebugSettings), debugSettings);
 IWebDriver webDriver = WebDriverInitialiser.InitialiseAvailableWebDriver(debugSettings.IsDebugMode);
 // ... then ServiceCollection
 ```
+
+Credentials are validated before this step, so an incomplete configuration never reaches WebDriver initialisation or the DI container.
 
 ## 9. No Retry Logic
 

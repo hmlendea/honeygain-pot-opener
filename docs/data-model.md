@@ -19,15 +19,19 @@ No database, no file storage (except logs), no cache, no local state.
 ```csharp
 public sealed class BotSettings
 {
-    public string EmailAddress { get; set; }
-    public string Password { get; set; }
+    public string EmailAddress { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+
+    public bool HasValidCredentials
+        => !string.IsNullOrWhiteSpace(EmailAddress) && !string.IsNullOrWhiteSpace(Password);
 }
 ```
 
-| Property | Type | Nullable | Source | Used By |
-|----------|------|----------|--------|---------|
-| `EmailAddress` | string | Yes | `appsettings.json:botSettings.emailAddress` | `HoneygainProcessor.LogIn()` |
-| `Password` | string | Yes | `appsettings.json:botSettings.password` | `HoneygainProcessor.LogIn()` |
+| Property | Type | Default | Source | Used By |
+|----------|------|---------|--------|---------|
+| `EmailAddress` | string | `string.Empty` | `appsettings.json:botSettings.emailAddress` | `HoneygainProcessor.LogIn()` |
+| `Password` | string | `string.Empty` | `appsettings.json:botSettings.password` | `HoneygainProcessor.LogIn()` |
+| `HasValidCredentials` | bool (computed) | Derived | `Program.Main` startup validation |
 
 **Lifecycle:** Created → Bound → Registered as singleton → Injected → Process exit
 
@@ -43,8 +47,8 @@ public sealed class DebugSettings
 
 | Property | Type | Default | Source | Used By |
 |----------|------|---------|--------|---------|
-| `IsDebugMode` | bool | `false` | `appsettings.json:debugSettings.isDebugMode` | `WebDriverInitialiser.Initialise()` |
-| `IsHeadless` | bool (computed) | `true` | Derived | `WebDriverInitialiser.Initialise()` |
+| `IsDebugMode` | bool | `false` | `appsettings.json:debugSettings.isDebugMode` | `WebDriverInitialiser.InitialiseAvailableWebDriver(isDebugMode)` |
+| `IsHeadless` | bool (computed) | `true` | Derived | Not consumed by the entry point; available for consumers that prefer the inverted flag |
 
 **Lifecycle:** Same as BotSettings
 
@@ -80,29 +84,34 @@ public static class MyLogInfoKey
 |----------|------|-------|---------|
 | `Username` | `LogInfoKey` | "Username" | All `BotService` operation methods |
 
-### Selector Constants (HoneygainProcessor)
+### Selector Properties (HoneygainProcessor)
 
 ```csharp
-private const string LoginUrl = "https://dashboard.honeygain.com/login";
-private const string CookieAcceptButtonId = "onetrust-accept-btn-handler";
-private const string EmailInputId = "email";
-private const string PasswordInputId = "password";
-private const string LoginButtonId = "login-btn";
-private const string DashboardIndicatorXPath = "//a[contains(@href, '/earnings')]";
-private const string ClaimRewardButtonXPath = "//button[contains(text(), 'Claim reward')]";
-private const string OpenLuckyPotButtonXPath = "//button[contains(text(), 'Open Lucky Pot')]";
+public static string HomePageUrl => "https://honeygain.com";
+public static string DashboardUrl => "https://dashboard.honeygain.com";
+public static string LogInUrl => $"{DashboardUrl}/login";
+
+private static string EmailAddressInputSelector => Select.ById("email");
+private static string PasswordInputSelector => Select.ById("password");
+private static string LogInButtonSelector => Select.ByXPath("//form/button");
+private static string DashboardReadySelector => Select.ById("traffic-legend-container");
+private static string CookiesConsentButtonSelector => Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]");
+private static string ClaimRewardButtonSelector => Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
+private static string OpenPotButtonSelector => Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
 ```
 
-| Constant | Type | Selector Type | Target |
-|----------|------|---------------|--------|
-| `LoginUrl` | string | URL | Login page |
-| `CookieAcceptButtonId` | string | ID | Cookie banner |
-| `EmailInputId` | string | ID | Email field |
-| `PasswordInputId` | string | ID | Password field |
-| `LoginButtonId` | string | ID | Login button |
-| `DashboardIndicatorXPath` | string | XPath | Earnings link (logged-in check) |
-| `ClaimRewardButtonXPath` | string | XPath | Claim reward button |
-| `OpenLuckyPotButtonXPath` | string | XPath | Open Lucky Pot button |
+| Property | Selector Type | Target |
+|----------|---------------|--------|
+| `HomePageUrl` | URL | Marketing home page |
+| `DashboardUrl` | URL | Dashboard landing page |
+| `LogInUrl` | URL | Login page |
+| `EmailAddressInputSelector` | ID | Email field |
+| `PasswordInputSelector` | ID | Password field |
+| `LogInButtonSelector` | XPath | Login button |
+| `DashboardReadySelector` | ID | Dashboard landmark |
+| `CookiesConsentButtonSelector` | XPath | Cookie consent acceptance |
+| `ClaimRewardButtonSelector` | XPath | Claim reward button |
+| `OpenPotButtonSelector` | XPath | Open Lucky Pot button |
 
 ## External Data (Honeygain Web UI)
 
@@ -118,13 +127,13 @@ private const string OpenLuckyPotButtonXPath = "//button[contains(text(), 'Open 
 
 | Element | Selector | Action | Page |
 |---------|----------|--------|------|
-| Cookie accept button | `#onetrust-accept-btn-handler` | Click | Login |
+| Cookie consent button | `//img[@alt='cookie consent']/../div/button[2]` | Wait visible / IsVisible / Click | Login |
 | Email input | `#email` | SetText | Login |
 | Password input | `#password` | SetText | Login |
-| Login button | `#login-btn` | Click | Login |
-| Earnings link | `//a[contains(@href, '/earnings')]` | Wait visible | Dashboard |
-| Claim reward button | `//button[contains(text(), 'Claim reward')]` | Click / IsVisible | Earnings |
-| Open Lucky Pot button | `//button[contains(text(), 'Open Lucky Pot')]` | DoubleClick / IsVisible | Earnings |
+| Login button | `//form/button` | Click | Login |
+| Dashboard landmark | `#traffic-legend-container` | Wait visible | Dashboard |
+| Claim reward button | `//span[text()='Claim reward']/../../../../../button` | IsVisible / Click | Dashboard |
+| Open Lucky Pot button | `//span[text()='Open Lucky Pot']/../../..` | Wait visible / IsVisible / Click | Dashboard |
 
 ## Log Data Model
 
@@ -136,7 +145,7 @@ private const string OpenLuckyPotButtonXPath = "//button[contains(text(), 'Open 
     Timestamp: DateTimeOffset,
     Level: "Info" | "Warning" | "Error" | "Fatal",
     Operation: "StartUp" | "LogIn" | "ClaimReward" | "OpenPot" | "Unknown",
-    Status: "Started" | "Success" | "Failure",
+    Status: "Started" | "Success" | "Failure",  // Success or Failure, never both for one operation
     Message: string,
     Exception: Exception?,  // when present
     LogInfo: [
@@ -195,18 +204,18 @@ ConfigurationBuilder.Bind()
 
 ## Validation Rules
 
-### Current: None at Model Level
+### Current: Startup Credential Check
 
-- No data annotations
-- No `IValidatableObject`
-- Validation occurs at **point of use** (Selenium throws on null/empty)
+- No data annotations and no `IValidatableObject`
+- `BotSettings.HasValidCredentials` is evaluated in `Program.Main` before a browser is created
+- Value-specific validation (for example, address format) still occurs at the point of use
 
-### Implicit Validation
+### Validation
 
 | Field | Validation | Failure Mode |
 |-------|------------|--------------|
-| `EmailAddress` | Non-null, non-empty, contains "@" | `SetText` throws or login fails |
-| `Password` | Non-null, non-empty | `SetText` throws or login fails |
+| `EmailAddress` | Non-blank (startup); address accepted by Honeygain (at use) | Missing → exit code 1 before browser; otherwise login fails |
+| `Password` | Non-blank (startup); accepted by Honeygain (at use) | Missing → exit code 1 before browser; otherwise login fails |
 | `IsDebugMode` | Boolean | Defaults to `false` |
 
 ## Serialization

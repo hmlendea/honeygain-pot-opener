@@ -31,15 +31,15 @@ The application **does not** include:
 
 ### Process Entry Point
 - **File:** `HoneygainPotOpener/Program.cs`
-- **Method:** `static void Main(string[] args)`
-- **Arguments:** None defined (args ignored)
-- **Exit Codes:** 0 (always, unless unhandled exception)
+- **Method:** `private static void Main()`
+- **Arguments:** None declared
+- **Exit Codes:** `0` on success; `1` on an unexpected operation failure, a guarded exception, or incomplete credentials
 
 ### Service Entry Point
 - **Interface:** `HoneygainPotOpener.Service.IBotService`
 - **Implementation:** `HoneygainPotOpener.Service.BotService`
-- **Method:** `void Run()`
-- **Invocation:** Called once from `Program.Main` after DI resolution
+- **Method:** `ExecutionReport Run()`
+- **Invocation:** Called once from `Program.RunBot` after DI resolution; the returned `ExecutionReport` determines the exit code
 
 ### Integration Entry Point
 - **Interface:** `HoneygainPotOpener.Processors.IHoneygainProcessor`

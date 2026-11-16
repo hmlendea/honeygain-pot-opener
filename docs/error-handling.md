@@ -25,9 +25,9 @@
 
 | Error | Detection | Result |
 |-------|-----------|--------|
-| Missing `appsettings.json` | `AddJsonFile(optional: true)` | Accepted; settings remain default |
+| Missing `appsettings.json` | `AddJsonFile(optional: true)` | Accepted; settings remain default (empty strings) |
 | Invalid JSON | `ConfigurationBuilder.Build()` | Exception at startup (unguarded) |
-| Missing required settings | Point of use (e.g., `SetText(null)`) | `ArgumentNullException` or Selenium exception |
+| Missing required settings | `BotSettings.HasValidCredentials` at startup | Diagnostic message on standard error and exit code 1; no driver is created |
 | Type mismatch in JSON | `config.Bind()` | Exception at bind time (unguarded) |
 
 ### 4. Unhandled Exceptions (Program.Main Guard)
@@ -44,42 +44,51 @@
 
 **HoneygainProcessor:** No try/catch — all exceptions propagate
 
-**BotService:** Catches all exceptions per operation
+**BotService:** Executes each operation through `ExecuteOperation`, which catches all exceptions
 
 ```csharp
-void LogIn()
+private void ExecuteOperation(
+    Operation operation,
+    Action action,
+    bool isFailureExpected,
+    List<Operation> failedOperations)
 {
     var logInfos = [new(MyLogInfoKey.Username, settings.EmailAddress)];
-    logger.Info(MyOperation.LogIn, OperationStatus.Started, logInfos);
+    logger.Info(operation, OperationStatus.Started, logInfos);
     try
     {
-        processor.LogIn();
+        action();
     }
-    catch (Exception ex)
+    catch (Exception exception)
     {
-        logger.Error(MyOperation.LogIn, OperationStatus.Failure, ex, logInfos);
+        LogFailure(operation, exception, isFailureExpected, logInfos);
+        if (!isFailureExpected)
+        {
+            failedOperations.Add(operation);
+        }
+        return;
     }
-    logger.Info(MyOperation.LogIn, OperationStatus.Success, logInfos);
+    logger.Info(operation, OperationStatus.Success, logInfos);
 }
 ```
 
-### Pattern 2: Severity by Operation
+### Pattern 2: Severity and Expectation by Operation
 
-| Operation | Failure Severity | Rationale |
-|-----------|------------------|-----------|
-| `LogIn` | `Error` | Authentication failure is critical |
-| `ClaimReward` | `Warn` | Reward may not be available (expected) |
-| `OpenPot` | `Error` | Pot opening is primary objective |
+| Operation | Failure Expected | Failure Severity | Rationale |
+|-----------|------------------|------------------|-----------|
+| `LogIn` | No | `Error` | Authentication failure is critical |
+| `ClaimReward` | Yes | `Warn` | Reward may not be available (expected) |
+| `OpenPot` | No | `Error` | Pot opening is primary objective |
 
-### Pattern 3: Unconditional Success Logging
+### Pattern 3: Conditional Success Logging
 
 ```csharp
-try { processor.Method(); }
-catch { logger.Error/Warn(Failure); }
-logger.Info(Success);  // ALWAYS executed
+try { action(); }
+catch { LogFailure(...); return; }
+logger.Info(operation, OperationStatus.Success, logInfos);
 ```
 
-**Consequence:** Success log ≠ operation succeeded
+**Consequence:** Success is logged only when the operation completed normally; a failure logs `Failure` and records the operation in `ExecutionReport.FailedOperations`.
 
 ### Pattern 4: Best-Effort Continuation
 
@@ -119,8 +128,8 @@ finally
 |--------------|-----------------|
 | Infrastructure (Selenium) | None — logged, continue to next operation |
 | Business logic (no reward/pot) | None — logged as Warn/Error, continue |
-| Configuration | None — fails at point of use |
-| Unhandled (Main guard) | Log Fatal, quit driver, exit |
+| Configuration | None — missing credentials abort before the browser starts |
+| Unhandled (Main guard) | Log Fatal, quit driver, exit code 1 |
 
 ### No Retry Logic
 
@@ -150,12 +159,10 @@ HoneygainProcessor.LogIn()
     └─► WaitForElement (dashboard) → timeout → WebDriverTimeoutException
             │
             ▼
-BotService.LogIn() catch (Exception ex)
+BotService.ExecuteOperation(LogIn) catch (Exception ex)
     │
     ├─► logger.Error(LogIn, Failure, ex, Username)
-    │
-    ▼
-logger.Info(LogIn, Success, Username)  ← LOGGED ANYWAY
+    ├─► failedOperations.Add(LogIn)
     │
     ▼
 BotService.Run() continues to ClaimReward()
@@ -172,12 +179,10 @@ HoneygainProcessor.ClaimReward()
 throw InvalidOperationException("There is no reward available...")
             │
             ▼
-BotService.ClaimReward() catch (Exception ex)
+BotService.ExecuteOperation(ClaimReward) catch (Exception ex)
     │
     ├─► logger.Warn(ClaimReward, Failure, ex, Username)
-    │
-    ▼
-logger.Info(ClaimReward, Success, Username)  ← LOGGED ANYWAY
+    ├─► failure is expected → not recorded in ExecutionReport
     │
     ▼
 BotService.Run() continues to OpenPot()
@@ -196,15 +201,13 @@ HoneygainProcessor.OpenPot()
 throw InvalidOperationException("The Lucky Pot cannot be opened...")
             │
             ▼
-BotService.OpenPot() catch (Exception ex)
+BotService.ExecuteOperation(OpenPot) catch (Exception ex)
     │
     ├─► logger.Error(OpenPot, Failure, ex, Username)
+    ├─► failedOperations.Add(OpenPot)
     │
     ▼
-logger.Info(OpenPot, Success, Username)  ← LOGGED ANYWAY
-    │
-    ▼
-BotService.Run() completes
+BotService.Run() completes and returns a failed ExecutionReport
 ```
 
 ### Unguarded Startup Failure
@@ -222,8 +225,11 @@ Program.Main()
 
 | Scenario | Exit Code | Notes |
 |----------|-----------|-------|
-| All operations attempted (any success/failure) | 0 | `Main` returns void |
-| Unhandled exception in Main guard | 0 | Caught, logged Fatal, driver quit |
+| No unexpected operation failures | 0 | `ExecutionReport.IsSuccessful` is `true` |
+| Unexpected operation failure (`LogIn` or `OpenPot`) | 1 | Recorded in `ExecutionReport.FailedOperations` |
+| Reward unavailable (expected) | 0 | `ClaimReward` failure is not treated as a run failure |
+| Missing or incomplete credentials | 1 | Diagnostic message written before the browser starts |
+| Unhandled exception in Main guard | 1 | Caught, logged Fatal, driver quit |
 | Unhandled exception before Main guard | Non-zero | .NET runtime default (typically 1) |
 | Unhandled exception in finally | Non-zero | If `driver.Quit()` throws |
 
@@ -234,10 +240,12 @@ Program.Main()
 - `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues`
 - `GivenRun_WhenClaimRewardThrows_ThenLogsWarningAndContinues`
 - `GivenRun_WhenOpenPotThrows_ThenLogsErrorAndContinues`
+- `GivenRun_WhenLogInAndOpenPotThrow_ThenReportsEveryFailure`
 
 **Verification:**
 - Exception caught and logged at correct severity
-- Success logged after failure
+- Success is not logged for a failed operation
+- Unexpected failures are recorded in `ExecutionReport.FailedOperations`
 - Subsequent operations still invoked
 
 ### Unit Tests (HoneygainProcessorTests)
@@ -253,22 +261,22 @@ Program.Main()
 | Change | Impact | Files |
 |--------|--------|-------|
 | Add retry logic | Changes single-pass design; requires async or blocking | `BotService`, `IHoneygainProcessor` |
-| Change log severity | Affects log analysis/alerting | `BotService` catch blocks |
-| Make success conditional | Success log = actual success | `BotService` (move Success log inside try) |
+| Change log severity | Affects log analysis/alerting | `BotService.LogFailure` |
+| Change failure expectation | Affects exit code and failure reporting | `BotService.Run` argument |
 | Add custom exceptions | Better error discrimination | New exception classes, `HoneygainProcessor`, `BotService` |
-| Add recovery actions | Compensating logic on failure | `BotService` catch blocks |
+| Add recovery actions | Compensating logic on failure | `BotService` catch block |
 | Guard startup phases | Prevent unguarded crashes | `Program.Main` (expand try scope) |
-| Set exit code on failure | External scheduler integration | `Program.Main` return int |
+| Change exit code policy | External scheduler integration | `Program.ResolveExitCode` |
 
 ## Invariants
 
 1. **All processor exceptions caught in BotService** — no unhandled exceptions from operations
-2. **Three log events per operation** — Started, Failure/Success (in catch), Success (always)
-3. **ClaimReward failure = Warn** — others = Error
+2. **Two log events per operation** — Started, then Success or Failure
+3. **ClaimReward failure = Warn and expected** — others = Error and recorded
 4. **Continuation always** — Run() completes all three operations
-5. **Driver quit in finally** — guaranteed for guarded path
+5. **Driver quit in finally** — guaranteed for the guarded path
 6. **No retry** — single attempt per operation per process
-7. **Unguarded startup** — config, WebDriver, DI, logger resolution can crash silently
+7. **Partially guarded startup** — config, WebDriver, DI, and logger resolution remain outside the orchestration guard; missing credentials are checked explicitly
 
 ## Related Documentation
 

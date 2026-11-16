@@ -9,15 +9,15 @@
 | **Type** | Web UI automation (Selenium) |
 | **Base URL** | `https://dashboard.honeygain.com` |
 | **Authentication** | Email/password form |
-| **Endpoints Used** | `/login`, `/`, `/earnings` |
+| **Endpoints Used** | `/login` and the post-login dashboard |
 | **Protocol** | HTTPS (browser) |
 | **Rate Limits** | Not documented (human-like usage) |
 | **API** | None (UI scraping) |
 
 **Integration Points:**
 1. Login page → form submission
-2. Dashboard → navigation to earnings
-3. Earnings page → claim reward button, open lucky pot button
+2. Dashboard landmark (`#traffic-legend-container`) confirms authentication
+3. Dashboard → claim reward button, open lucky pot button
 
 **Fragility:** High — depends on HTML structure, text content, XPath selectors
 
@@ -38,7 +38,7 @@
 | **Type** | Browser automation abstraction |
 | **Packages** | `NuciWeb` 4.0.0, `NuciWeb.Automation` 1.0.0, `NuciWeb.Automation.Selenium` 1.0.2 |
 | **Integration** | `IWebProcessor` interface implemented by `SeleniumWebProcessor` |
-| **WebDriver** | Auto-initialised via `WebDriverInitialiser.Initialise(headless)` |
+| **WebDriver** | Auto-initialised via `WebDriverInitialiser.InitialiseAvailableWebDriver(isDebugMode)` |
 | **Browser** | Chrome/Chromium (auto-detected) |
 
 ### Selenium WebDriver
@@ -64,10 +64,10 @@
 
 | Method | Called By | Calls |
 |--------|-----------|-------|
-| `Run()` | `Program.Main` | `LogIn()`, `ClaimReward()`, `OpenPot()` |
-| `LogIn()` | `Run()` | `IHoneygainProcessor.LogIn()` |
-| `ClaimReward()` | `Run()` | `IHoneygainProcessor.ClaimReward()` |
-| `OpenPot()` | `Run()` | `IHoneygainProcessor.OpenPot()` |
+| `Run()` → `ExecutionReport` | `Program.RunBot` | `ExecuteOperation` for `LogIn`, `ClaimReward`, and `OpenPot` |
+| `ExecuteOperation(LogIn)` | `Run()` | `IHoneygainProcessor.LogIn()`, then success or failure logging |
+| `ExecuteOperation(ClaimReward)` | `Run()` | `IHoneygainProcessor.ClaimReward()`, expected failure policy |
+| `ExecuteOperation(OpenPot)` | `Run()` | `IHoneygainProcessor.OpenPot()`, then success or failure logging |
 
 ### IHoneygainProcessor → HoneygainProcessor
 
@@ -75,7 +75,7 @@
 |--------|-----------|----------------------|
 | `LogIn()` | `BotService.LogIn()` | `GoToUrl`, `WaitForElementToBeVisible`, `SetText`, `Click` |
 | `ClaimReward()` | `BotService.ClaimReward()` | `IsElementVisible`, `Click` |
-| `OpenPot()` | `BotService.OpenPot()` | `WaitForElementToBeVisible`, `IsElementVisible`, `DoubleClick` |
+| `OpenPot()` | `BotService` | `WaitForElementToBeVisible`, `IsElementVisible`, `Click` |
 
 ### IWebProcessor → SeleniumWebProcessor
 
@@ -86,7 +86,7 @@
 | `IsElementVisible(by)` | `ClaimReward`, `OpenPot` | `FindElement` + `Displayed` |
 | `SetText(by, text)` | `LogIn` | `FindElement` + `Clear` + `SendKeys` |
 | `Click(by)` | `LogIn`, `ClaimReward` | `FindElement` + `Click` |
-| `DoubleClick(by)` | `OpenPot` | `Actions` + `DoubleClick` |
+| `Click(selector)` | `LogIn`, `ClaimReward`, `OpenPot` | Selenium element click |
 | `Quit()` | `Program.Main` finally | `driver.Quit()` |
 
 ## Integration Patterns
@@ -126,7 +126,7 @@ services.AddNuciLoggerSettings(config)
 
 // Web automation
 services.AddSingleton<IWebProcessor>(sp => {
-    var driver = WebDriverInitialiser.Initialise(debugSettings.IsHeadless);
+    IWebDriver webDriver = WebDriverInitialiser.InitialiseAvailableWebDriver(debugSettings.IsDebugMode);
     return new SeleniumWebProcessor(driver);
 });
 

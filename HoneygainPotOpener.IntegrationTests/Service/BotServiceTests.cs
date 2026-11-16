@@ -227,19 +227,9 @@ namespace HoneygainPotOpener.IntegrationTests.Service
 
         private void VerifyLogging(bool hasLoginFailure, bool hasRewardFailure, bool hasPotFailure)
         {
-            Operation[] operations = [MyOperation.LogIn, MyOperation.ClaimReward, MyOperation.OpenPot];
-
-            foreach (Operation operation in operations)
-            {
-                logger.Verify(log => log.Info(
-                    It.Is<Operation>(actual => actual.Name == operation.Name),
-                    It.Is<OperationStatus>(status => status.Name == "Started"),
-                    It.IsAny<IEnumerable<LogInfo>>()), Times.Once);
-                logger.Verify(log => log.Info(
-                    It.Is<Operation>(actual => actual.Name == operation.Name),
-                    It.Is<OperationStatus>(status => status.Name == "Success"),
-                    It.IsAny<IEnumerable<LogInfo>>()), Times.Once);
-            }
+            VerifyOperationLogging(MyOperation.LogIn, hasLoginFailure);
+            VerifyOperationLogging(MyOperation.ClaimReward, hasRewardFailure);
+            VerifyOperationLogging(MyOperation.OpenPot, hasPotFailure);
 
             logger.Verify(log => log.Warn(
                 It.Is<Operation>(operation => operation.Name == "ClaimReward"),
@@ -249,6 +239,18 @@ namespace HoneygainPotOpener.IntegrationTests.Service
             VerifyErrorCount(MyOperation.LogIn, hasLoginFailure);
             VerifyErrorCount(MyOperation.OpenPot, hasPotFailure);
             logger.VerifyNoOtherCalls();
+        }
+
+        private void VerifyOperationLogging(Operation operation, bool hasFailure)
+        {
+            logger.Verify(log => log.Info(
+                It.Is<Operation>(actual => actual.Name == operation.Name),
+                It.Is<OperationStatus>(status => status.Name == "Started"),
+                It.IsAny<IEnumerable<LogInfo>>()), Times.Once);
+            logger.Verify(log => log.Info(
+                It.Is<Operation>(actual => actual.Name == operation.Name),
+                It.Is<OperationStatus>(status => status.Name == "Success"),
+                It.IsAny<IEnumerable<LogInfo>>()), Times.Exactly(Convert.ToInt32(!hasFailure)));
         }
 
         private void VerifyErrorCount(Operation operation, bool hasFailure)

@@ -7,7 +7,7 @@ This document elaborates on the root [ARCHITECTURE.md](../ARCHITECTURE.md) with 
 The application follows a **dependency-injected synchronous console pipeline** with three principal boundaries:
 
 1. **Composition Root** (`Program.cs`) — Loads configuration, initialises WebDriver, registers services, resolves `IBotService`, records startup, and terminates the driver in `finally`.
-2. **Orchestration Service** (`BotService`) — Owns the fixed operation sequence (`LogIn` → `ClaimReward` → `OpenPot`), emits structured log events for each operation (started, failure/warning, success), and applies best-effort continuation: every operation is attempted regardless of prior failures.
+2. **Orchestration Service** (`BotService`) — Owns the fixed operation sequence (`LogIn` → `ClaimReward` → `OpenPot`), emits structured log events for each operation (started, then failure or success), returns an `ExecutionReport`, and applies best-effort continuation: every operation is attempted regardless of prior failures.
 3. **Integration Adapter** (`HoneygainProcessor`) — Translates domain operations into browser commands via `IWebProcessor`. Owns all Honeygain-specific URLs, selectors, and interaction logic.
 
 ```
@@ -46,25 +46,25 @@ Program (composition)
 - Configuration binding occurs **once**; runtime changes to `appsettings.json` do not affect running process
 - WebDriver initialisation happens **before** DI container construction
 - No explicit `IServiceProvider.Dispose()` call; driver cleanup is manual in `finally`
-- No exit code is set; process exits 0 unless unhandled exception escapes `Main`
+- Exit code is `0` when the execution report has no unexpected failures; otherwise it is `1`
 
 ### BotService (Orchestration)
 
 **Location:** `HoneygainPotOpener/Service/BotService.cs`
 
 **Responsibilities:**
-- Implements `IBotService.Run()` → calls `LogIn()`, `ClaimReward()`, `OpenPot()` in fixed order
-- Each operation method:
+- Implements `IBotService.Run()` → calls `LogIn()`, `ClaimReward()`, `OpenPot()` in fixed order and returns `ExecutionReport`
+- Each operation is handled by `ExecuteOperation`:
   1. Creates `LogInfo` with `MyLogInfoKey.Username` = `settings.EmailAddress`
   2. Logs `OperationStatus.Started`
-  3. Invokes corresponding `IHoneygainProcessor` method in `try`
-  4. On exception:
-     - `LogIn` / `OpenPot` → `logger.Error(..., OperationStatus.Failure, ex, logInfos)`
-     - `ClaimReward` → `logger.Warn(..., OperationStatus.Failure, ex, logInfos)`
-  5. Logs `OperationStatus.Success` **unconditionally** after `catch`
+  3. Invokes the corresponding `IHoneygainProcessor` method
+  4. On exception, logs `Error` for login/pot or `Warn` for reward; records login/pot failures
+  5. Logs `OperationStatus.Success` only when the processor returns normally
 
 **Critical Behaviour:**
-- Success log is emitted **even when the operation threw** — log-derived success is not evidence of completion
+- Success is logged only when the operation returns normally
+- Login and pot failures are returned in `ExecutionReport.FailedOperations`
+- Reward absence is logged as a warning but is treated as expected
 - Operations are independent; failure in one does not stop subsequent operations
 - Email address is included in every operation log for correlation
 
@@ -182,7 +182,8 @@ logfile.log (if enabled)
        │   └─ Click(open pot button)
        ├─ catch → logger.Error(OpenPot, Failure, ex, Username)
        └─ logger.Info(OpenPot, Success, Username)
-7. webDriver.Quit() in finally
+7. Environment.ExitCode = ResolveExitCode(report)
+8. webDriver.Quit() in finally
 ```
 
 ## Dependency Direction Rules

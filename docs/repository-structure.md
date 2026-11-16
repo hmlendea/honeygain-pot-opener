@@ -19,7 +19,8 @@ honeygain-pot-opener/
 │   │   ├── IHoneygainProcessor.cs  # Contract: LogIn, ClaimReward, OpenPot
 │   │   └── HoneygainProcessor.cs   # Implementation with selectors
 │   ├── Service/
-│   │   ├── IBotService.cs          # Contract: Run()
+│   │   ├── ExecutionReport.cs      # Run outcome: IsSuccessful, FailedOperations
+│   │   ├── IBotService.cs          # Contract: Run() → ExecutionReport
 │   │   └── BotService.cs           # Orchestration, logging, continuation
 │   ├── appsettings.json            # Configuration (copied to output)
 │   ├── HoneygainPotOpener.csproj   # Project file, dependencies
@@ -36,6 +37,13 @@ honeygain-pot-opener/
 │   ├── Service/
 │   │   └── BotServiceTests.cs
 │   └── HoneygainPotOpener.UnitTests.csproj
+├── HoneygainPotOpener.IntegrationTests/  # Component integration test project
+│   ├── Service/
+│   │   └── BotServiceTests.cs
+│   └── HoneygainPotOpener.IntegrationTests.csproj
+├── HoneygainPotOpener.ArchitectureTests/ # Architecture and convention test project
+│   ├── ArchitectureTests.cs
+│   └── HoneygainPotOpener.ArchitectureTests.csproj
 ├── ARCHITECTURE.md                 # Root architecture document
 ├── CONTRIBUTING.md                 # Contribution guidelines
 ├── HoneygainPotOpener.slnx         # Solution file
@@ -56,7 +64,7 @@ honeygain-pot-opener/
 | `HoneygainPotOpener.Configuration` | Settings transport | `BotSettings`, `DebugSettings` |
 | `HoneygainPotOpener.Logging` | NuciLog extensions | `MyLogInfoKey`, `MyOperation` |
 | `HoneygainPotOpener.Processors` | Honeygain integration | `IHoneygainProcessor`, `HoneygainProcessor` |
-| `HoneygainPotOpener.Service` | Orchestration | `IBotService`, `BotService` |
+| `HoneygainPotOpener.Service` | Orchestration | `IBotService`, `BotService`, `ExecutionReport` |
 
 ### HoneygainPotOpener.UnitTests (Test Project)
 
@@ -65,7 +73,7 @@ honeygain-pot-opener/
 | `HoneygainPotOpener.UnitTests.Configuration` | Settings validation | `BotSettingsTests`, `DebugSettingsTests` |
 | `HoneygainPotOpener.UnitTests.Logging` | Log extensions validation | `MyLogInfoKeyTests`, `MyOperationTests` |
 | `HoneygainPotOpener.UnitTests.Processors` | Processor behaviour | `HoneygainProcessorTests` |
-| `HoneygainPotOpener.UnitTests.Service` | Orchestration behaviour | `BotServiceTests` |
+| `HoneygainPotOpener.UnitTests.Service` | Orchestration behaviour and execution reports | `BotServiceTests` |
 
 ## Project Files
 
@@ -73,6 +81,9 @@ honeygain-pot-opener/
 - **Target:** `net10.0`
 - **Output:** Exe
 - **ImplicitUsings:** Disabled
+- **Nullable:** Enabled
+- **LangVersion:** latest
+- **Packable:** false
 - **Key Dependencies:**
   - `Microsoft.Extensions.Configuration` (10.0.13)
   - `Microsoft.Extensions.DependencyInjection` (10.0.13)

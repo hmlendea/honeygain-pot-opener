@@ -20,6 +20,8 @@
 | Error | `LogLevel.Error` | `LogIn`/`OpenPot` failures, unhandled exceptions |
 | Fatal | `LogLevel.Fatal` | Unhandled exceptions in `Program.Main` guard |
 
+An operation logs exactly one terminal event: `Success` when the processor call returns, or `Failure` when it throws. Success is therefore never recorded for a failed operation.
+
 **Configured Minimum:** `Info` (from `nuciLoggerSettings.minimumLevel`)
 
 ## Structured Fields
@@ -48,7 +50,7 @@ Every log entry includes structured context via `LogInfo` records.
 ### LogInfo Creation
 
 ```csharp
-// In BotService.LogIn(), ClaimReward(), OpenPot()
+// In BotService.ExecuteOperation()
 IEnumerable<LogInfo> logInfos = [
     new(MyLogInfoKey.Username, settings.EmailAddress)
 ];
@@ -78,15 +80,15 @@ Operation.StartUp (no Username)
     │
     ▼
 LogIn Started (Username: user@example.com)
-LogIn Failure/Success (Username: user@example.com)
+LogIn Success or Failure (Username: user@example.com)
     │
     ▼
 ClaimReward Started (Username: user@example.com)
-ClaimReward Failure/Success (Username: user@example.com)
+ClaimReward Success or Failure (Username: user@example.com)
     │
     ▼
 OpenPot Started (Username: user@example.com)
-OpenPot Failure/Success (Username: user@example.com)
+OpenPot Success or Failure (Username: user@example.com)
 ```
 
 ## Sinks / Destinations
@@ -320,8 +322,8 @@ services.AddNuciLoggerSettings(config)
 
 | Change | Files | Considerations |
 |--------|-------|----------------|
-| Add log field | `BotService` methods → new `LogInfo` | Update `MyLogInfoKey` if new key type |
-| Change log level | `BotService` catch blocks | `ClaimReward` uses Warn; others Error |
+| Add log field | `BotService.ExecuteOperation` → new `LogInfo` | Update `MyLogInfoKey` if new key type |
+| Change log level | `BotService.LogFailure` | `ClaimReward` uses Warn; others Error |
 | Add correlation ID | Generate in `Program`, pass via settings | Requires new `LogInfoKey` and plumbing |
 | Enable async logging | NuciLog configuration | Check NuciLog docs for async sink |
 | Add log rotation | External (logrotate) or custom sink | Not in NuciLog config |
@@ -332,9 +334,9 @@ services.AddNuciLoggerSettings(config)
 
 1. **Email in every operation log** — `Username` LogInfo always present
 2. **Password never logged** — no code path passes password to logger
-3. **Three events per operation** — Started, Failure/Success (in catch), Success (always)
+3. **Two events per operation** — `Started`, then exactly one of `Success` or `Failure`
 4. **Startup logged first** — `Operation.StartUp` before any operation
-5. **Fatal only in Program.Main guard** — not in `BotService` or `HoneygainProcessor`
+5. **Fatal only in the Program guard** — not in `BotService` or `HoneygainProcessor`
 6. **No correlation ID** — only Username for correlation
 
 ## Related Documentation

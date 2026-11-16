@@ -59,13 +59,13 @@
 ### 2. Credential Handling in Memory
 
 ```csharp
-// BotSettings registered as singleton
+// BotSettings registered as singleton after startup credential validation
 services.AddSingleton(botSettings);
 
 // Injected into BotService → HoneygainProcessor
 // Used only in:
-processor.SetText(By.Id("email"), settings.EmailAddress);
-processor.SetText(By.Id("password"), settings.Password);
+webProcessor.SetText(Select.ById("email"), settings.EmailAddress);
+webProcessor.SetText(Select.ById("password"), settings.Password);
 ```
 
 **Controls:**

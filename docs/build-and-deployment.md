@@ -311,10 +311,12 @@ Operation=StartUp Status=Success
 Operation=LogIn Status=Started Username="..."
 Operation=LogIn Status=Success Username="..."
 Operation=ClaimReward Status=Started Username="..."
-Operation=ClaimReward Status=Success/Warn Username="..."
+Operation=ClaimReward Status=Success Username="..."
 Operation=OpenPot Status=Started Username="..."
 Operation=OpenPot Status=Success Username="..."
 ```
+
+A reward that is unavailable records `ClaimReward Status=Failure` instead of success and still exits with code `0`. A `LogIn` or `OpenPot` failure records `Failure` and exits with code `1`.
 
 ## Rollback
 
