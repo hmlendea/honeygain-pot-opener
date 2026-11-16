@@ -276,6 +276,10 @@ jobs:
 
 The workflow runs when a GitHub release is published. It determines the .NET version from `HoneygainPotOpener/HoneygainPotOpener.csproj`, retrieves the matching upstream release helper, creates archives for the supported runtime identifiers, and publishes `HoneygainPotOpener/bin/Release/honeygain-pot-opener_*` to the release with `softprops/action-gh-release@v2`. Review the remotely retrieved helper before relying on its behaviour.
 
+### Security Workflow (`.github/workflows/security.yml`)
+
+The `Security Scan` job runs on pushes and pull requests to `master` and on a weekly schedule. It restores the solution, runs `dotnet list package --vulnerable --include-transitive`, and performs CodeQL static analysis for `csharp` through `github/codeql-action/init@v4` and `github/codeql-action/analyze@v4`. Results are uploaded to the repository [Security](https://github.com/hmlendea/honeygain-pot-opener/security) tab using the `security-events: write` permission, which requires the repository to remain public.
+
 ## Verification
 
 ### Post-Deployment Checks

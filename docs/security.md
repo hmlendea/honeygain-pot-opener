@@ -116,6 +116,8 @@ webProcessor.SetText(Select.ById("password"), settings.Password);
 
 ## Vulnerabilities & Mitigations
 
+Automated dependency vulnerability scanning and CodeQL static analysis run through `.github/workflows/security.yml` on pushes and pull requests to `master`, and on a weekly schedule. Findings are published to the repository Security tab.
+
 ### VULN-001: Plain Text Credentials in Config File
 
 | Aspect | Detail |
@@ -279,7 +281,6 @@ ls -la appsettings.json logfile.log
 | Medium | SecureString for password in memory | Medium |
 | Low | Certificate pinning for Honeygain API | Medium |
 | Low | Request/response audit logging | Medium |
-| Low | Automated dependency vulnerability scanning | Low |
 
 ## Related Documentation
 
