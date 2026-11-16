@@ -1,6 +1,7 @@
 [![Donate](https://img.shields.io/badge/-%E2%99%A5%20Donate-%23ff69b4)](https://hmlendea.go.ro/funding)
 [![Latest Release](https://img.shields.io/github/v/release/hmlendea/honeygain-pot-opener)](https://github.com/hmlendea/honeygain-pot-opener/releases/latest)
 [![Build Status](https://github.com/hmlendea/honeygain-pot-opener/actions/workflows/dotnet.yml/badge.svg)](https://github.com/hmlendea/honeygain-pot-opener/actions/workflows/dotnet.yml)
+[![Security Scan](https://github.com/hmlendea/honeygain-pot-opener/actions/workflows/security.yml/badge.svg)](https://github.com/hmlendea/honeygain-pot-opener/actions/workflows/security.yml)
 [![License](https://img.shields.io/github/license/hmlendea/honeygain-pot-opener)](https://github.com/hmlendea/honeygain-pot-opener/blob/master/LICENSE)
 
 # Honeygain Pot Opener
@@ -235,8 +236,9 @@ git push origin v1.1.3
 
 | Workflow | Purpose | What it does |
 |----------|---------|--------------|
-| [.NET](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/dotnet.yml) | Continuous integration | Restores dependencies, builds the solution, and runs all tests on pushes and pull requests to `master`. |
-| [GitHub Release](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/github-release.yml) | Release publication | Builds the per-platform release archives for the published release tag and attaches them to the GitHub release. |
+| [ .NET ](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/dotnet.yml) | Continuous integration | Restores dependencies, builds the solution, and runs all tests on pushes and pull requests to `master`. |
+| [ GitHub Release ](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/github-release.yml) | Release publication | Builds the per-platform release archives for the published release tag and attaches them to the GitHub release. |
+| [ Security ](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/security.yml) | Automated security scanning | Checks dependencies for known vulnerabilities and runs CodeQL static analysis for C# on pushes and pull requests to `master`, and on a weekly schedule. |
 
 ## 🗂️ Project Structure
 
@@ -316,7 +318,7 @@ See the [Code of Conduct](./CODE_OF_CONDUCT.md) for the standards of conduct exp
 
 Honeygain Pot Opener follows the current GitHub Release security policy for private, coordinated vulnerability reporting.
 
-For information on reporting security vulnerabilities, see [SECURITY.md](./SECURITY.md).
+For information on reporting security vulnerabilities, see the [Security Policy](./SECURITY.md).
 
 ## 💬 Support
 

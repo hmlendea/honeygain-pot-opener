@@ -379,6 +379,7 @@ The selected processor is retained by a singleton `HoneygainProcessor` during on
 | Structured logging identifiers | `Logging/` |
 | Runtime configuration | `appsettings.json` |
 | Continuous integration | `.github/workflows/dotnet.yml` |
+| Automated security scanning | `.github/workflows/security.yml` |
 | Release packaging and publication | `.github/workflows/github-release.yml` |
 
 ## 📚 Related Documentation

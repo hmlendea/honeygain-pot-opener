@@ -7,6 +7,7 @@ honeygain-pot-opener/
 ├── .github/
 │   └── workflows/
 │       ├── dotnet.yml              # CI: build, test on push/PR to master
+│       ├── security.yml            # Security: dependency audit and CodeQL analysis
 │       └── github-release.yml      # Release: build artefacts on published release
 ├── HoneygainPotOpener/             # Main console application
 │   ├── Configuration/

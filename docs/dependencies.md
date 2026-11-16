@@ -127,6 +127,8 @@ dotnet nuget audit
 
 Run `dotnet list package --vulnerable` in repository root to verify.
 
+The `.github/workflows/security.yml` workflow runs `dotnet list package --vulnerable --include-transitive` together with CodeQL static analysis on pushes and pull requests to `master`, and on a weekly schedule.
+
 ### Response Process
 
 1. **Critical/High:** Update immediately (patch version)
