@@ -46,6 +46,7 @@ A .NET console application that authenticates with Honeygain, claims an availabl
 - [Contributing](#contributing)
 - [Code of Conduct](#code-of-conduct)
 - [Security](#security)
+- [Support](#support)
 - [Project Engagement](#project-engagement)
 - [License](#license)
 
@@ -204,15 +205,16 @@ The [.github/workflows/dotnet.yml](https://github.com/hmlendea/honeygain-pot-ope
 
 ### Release
 
-The repository includes `release.sh`, which delegates to the upstream deployment script used by the project maintainer.
+Releases are produced by the [Release workflow](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/github-release.yml), which runs when a release is published on GitHub. The workflow derives the version from the release tag, determines the .NET version from `HoneygainPotOpener/HoneygainPotOpener.csproj`, builds the packaged artefacts through the upstream .NET release helper retrieved from `https://raw.githubusercontent.com/hmlendea/dotnet-release-scripts/refs/heads/master/dotnet/10.0.sh`, and attaches the resulting archives to the GitHub release.
+
+To publish a release, create a tag and publish a GitHub release for it:
 
 ```bash
-bash ./release.sh 1.1.2
+git tag v1.1.3
+git push origin v1.1.3
 ```
 
-This script downloads and executes an external release helper from `https://raw.githubusercontent.com/hmlendea/deployment-scripts/master/release/dotnet/10.0.sh`.
-
-**Note:** Piping into `bash` is an intensely controversial topic. Please review any external scripts before running them in your environment!
+**Note:** The release helper is retrieved and executed remotely by the workflow. Please review any external scripts before relying on them in your environment!
 
 ### Dependencies
 
@@ -234,6 +236,7 @@ This script downloads and executes an external release helper from `https://raw.
 | Workflow | Purpose | What it does |
 |----------|---------|--------------|
 | [.NET](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/dotnet.yml) | Continuous integration | Restores dependencies, builds the solution, and runs all tests on pushes and pull requests to `master`. |
+| [GitHub Release](https://github.com/hmlendea/honeygain-pot-opener/blob/master/.github/workflows/github-release.yml) | Release publication | Builds the per-platform release archives for the published release tag and attaches them to the GitHub release. |
 
 ## 🗂️ Project Structure
 
@@ -314,6 +317,10 @@ See the [Code of Conduct](./CODE_OF_CONDUCT.md) for the standards of conduct exp
 Honeygain Pot Opener follows the current GitHub Release security policy for private, coordinated vulnerability reporting.
 
 For information on reporting security vulnerabilities, see [SECURITY.md](./SECURITY.md).
+
+## 💬 Support
+
+For support, please [open an issue](https://github.com/hmlendea/honeygain-pot-opener/issues).
 
 ## 💝 Project Engagement
 

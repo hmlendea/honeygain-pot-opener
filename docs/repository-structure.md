@@ -6,7 +6,8 @@
 honeygain-pot-opener/
 ├── .github/
 │   └── workflows/
-│       └── dotnet.yml              # CI: build, test on push/PR to master
+│       ├── dotnet.yml              # CI: build, test on push/PR to master
+│       └── github-release.yml      # Release: build artefacts on published release
 ├── HoneygainPotOpener/             # Main console application
 │   ├── Configuration/
 │   │   ├── BotSettings.cs          # EmailAddress, Password
@@ -42,7 +43,6 @@ honeygain-pot-opener/
 ├── PRIVACY.md                      # Privacy policy
 ├── README.md                       # Project readme
 ├── SECURITY.md                     # Security policy
-├── release.sh                      # Release script (fetches remote helper)
 └── docs/                           # This documentation
 ```
 
