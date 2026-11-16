@@ -13,28 +13,34 @@ The application services layer contains the orchestration logic (`BotService`) t
 ```csharp
 public interface IBotService
 {
-    void Run();
+    ExecutionReport Run();
 }
 ```
 
 ### Implementation
 
 ```csharp
-public class BotService(
+public sealed class BotService(
     IHoneygainProcessor processor,
     BotSettings settings,
     ILogger logger) : IBotService
 {
-    public void Run()
+    public ExecutionReport Run()
     {
-        LogIn();
-        ClaimReward();
-        OpenPot();
+        List<Operation> failedOperations = [];
+
+        ExecuteOperation(MyOperation.LogIn, processor.LogIn, false, failedOperations);
+        ExecuteOperation(MyOperation.ClaimReward, processor.ClaimReward, true, failedOperations);
+        ExecuteOperation(MyOperation.OpenPot, processor.OpenPot, false, failedOperations);
+
+        return new ExecutionReport { FailedOperations = failedOperations };
     }
 
-    void LogIn() { /* ... */ }
-    void ClaimReward() { /* ... */ }
-    void OpenPot() { /* ... */ }
+    private void ExecuteOperation(
+        Operation operation,
+        Action action,
+        bool isFailureExpected,
+        List<Operation> failedOperations) { /* ... */ }
 }
 ```
 
@@ -47,12 +53,16 @@ public class BotService(
 
 Each operation is independent — failure in one does not stop subsequent operations.
 
-### Operation Method Pattern
+### Operation Execution Pattern
 
-All three methods follow the identical pattern:
+All three operations share the single `ExecuteOperation` helper:
 
 ```csharp
-void OperationName()
+private void ExecuteOperation(
+    Operation operation,
+    Action action,
+    bool isFailureExpected,
+    List<Operation> failedOperations)
 {
     // 1. Create log context with email
     IEnumerable<LogInfo> logInfos = [
@@ -60,21 +70,28 @@ void OperationName()
     ];
 
     // 2. Log operation started
-    logger.Info(MyOperation.OperationName, OperationStatus.Started, logInfos);
+    logger.Info(operation, OperationStatus.Started, logInfos);
 
     try
     {
         // 3. Invoke processor
-        processor.OperationName();
+        action();
     }
-    catch (Exception ex)
+    catch (Exception exception)
     {
-        // 4. Log failure (severity varies)
-        logger.Error/Warn(MyOperation.OperationName, OperationStatus.Failure, ex, logInfos);
+        // 4. Log failure (severity depends on whether failure is expected)
+        LogFailure(operation, exception, isFailureExpected, logInfos);
+
+        if (!isFailureExpected)
+        {
+            failedOperations.Add(operation);
+        }
+
+        return;
     }
 
-    // 5. Log success UNCONDITIONALLY
-    logger.Info(MyOperation.OperationName, OperationStatus.Success, logInfos);
+    // 5. Log success only when the operation completed
+    logger.Info(operation, OperationStatus.Success, logInfos);
 }
 ```
 
@@ -88,29 +105,22 @@ void OperationName()
 
 ### Log Events Emitted
 
-For each operation, **three log events** are emitted (assuming no unhandled exception):
+Each operation emits a `Started` event and then exactly one terminal event: `Success` when the processor call returns normally, or `Failure` when it throws.
 
 | Sequence | Level | Operation | Status | Context |
 |----------|-------|-----------|--------|---------|
 | 1 | Info | LogIn | Started | Username |
 | 2 | Error/Info | LogIn | Failure/Success | Username + Exception (if failed) |
-| 3 | Info | LogIn | Success | Username |
-| 4 | Info | ClaimReward | Started | Username |
-| 5 | Warn/Info | ClaimReward | Failure/Success | Username + Exception (if failed) |
-| 6 | Info | ClaimReward | Success | Username |
-| 7 | Info | OpenPot | Started | Username |
-| 8 | Error/Info | OpenPot | Failure/Success | Username + Exception (if failed) |
-| 9 | Info | OpenPot | Success | Username |
+| 3 | Info | ClaimReward | Started | Username |
+| 4 | Warn/Info | ClaimReward | Failure/Success | Username + Exception (if failed) |
+| 5 | Info | OpenPot | Started | Username |
+| 6 | Error/Info | OpenPot | Failure/Success | Username + Exception (if failed) |
 
-**Total: 9 log events per successful run (3 per operation)**
+**Total: 6 log events per successful run (2 per operation)**
 
-### Critical Behaviour: Unconditional Success Logging
+### Success Evidence
 
-The `logger.Info(..., OperationStatus.Success, ...)` call is **outside the `try` block**, after the `catch`. This means:
-
-- **Success is logged even when the operation threw an exception**
-- Log-derived success is **not evidence** that the browser operation completed
-- Tests verify this: `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues` expects both `Failure` and `Success` for the same operation
+The `logger.Info(..., OperationStatus.Success, ...)` call executes only after the processor call returns without an exception, so a success event is evidence that the operation completed. Failures are logged, recorded in `ExecutionReport.FailedOperations`, and not reported as success.
 
 ### Continuation Semantics
 
@@ -118,7 +128,7 @@ The `logger.Info(..., OperationStatus.Success, ...)` call is **outside the `try`
 LogIn throws
     │
     ├─► logger.Error(LogIn, Failure, ex)
-    ├─► logger.Info(LogIn, Success)  ← logged anyway
+    ├─► failedOperations.Add(LogIn)
     ▼
 ClaimReward executes
     │
@@ -150,9 +160,11 @@ OpenPot executes
 **Test Coverage:**
 - `GivenRun_WhenCalled_ThenCallsLogInClaimRewardAndOpenPotInOrder` — verifies sequence
 - `GivenRun_WhenAllSucceed_ThenLogsAllOperations` — verifies 6 log calls (3 Started + 3 Success)
-- `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues` — verifies error + success + continuation
-- `GivenRun_WhenClaimRewardThrows_ThenLogsWarningAndContinues` — verifies warn + success + continuation
-- `GivenRun_WhenOpenPotThrows_ThenLogsErrorAndContinues` — verifies error + success + continuation
+- `GivenRun_WhenAllSucceed_ThenReportsSuccess` — verifies the report is successful and carries no failures
+- `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues` — verifies error, no success, continuation, and failure recording
+- `GivenRun_WhenClaimRewardThrows_ThenLogsWarningAndContinues` — verifies warn and continuation without failure recording
+- `GivenRun_WhenOpenPotThrows_ThenLogsErrorAndContinues` — verifies error, no success, continuation, and failure recording
+- `GivenRun_WhenLogInAndOpenPotThrow_ThenReportsEveryFailure` — verifies all unexpected failures are recorded in order
 
 **Mock Verification:**
 - Uses `Moq` to verify `processor` method calls
@@ -163,20 +175,20 @@ OpenPot executes
 
 | Change | Impact | Considerations |
 |--------|--------|----------------|
-| Add new operation | Add method to `IHoneygainProcessor`, `HoneygainProcessor`, `BotService.Run()` | Follow same logging pattern; choose severity |
+| Add new operation | Add method to `IHoneygainProcessor`, `HoneygainProcessor`, `BotService.Run()` | Follow the same logging pattern; choose whether the failure is expected |
 | Change operation order | Modify `Run()` method | May break assumptions (e.g., login must precede others) |
-| Change log severity | Modify `catch` block in specific method | `ClaimReward` uses `Warn`; others use `Error` |
-| Make success conditional | Move `logger.Info(Success)` inside `try` after processor call | Would change log semantics; update tests |
+| Change log severity | Modify `LogFailure` | `ClaimReward` uses `Warn`; others use `Error` |
+| Change failure policy | Modify the `isFailureExpected` argument | Expected failures are logged but excluded from `ExecutionReport` |
 | Add retry logic | Wrap processor call in retry loop | Would require async or blocking wait; changes single-pass design |
-| Add operation result tracking | Return `bool` or result object from methods | Would require interface changes; affects tests |
 
 ### Invariants
 
 1. **Fixed Order:** `LogIn` → `ClaimReward` → `OpenPot` always
 2. **All Operations Attempted:** No early return on failure
-3. **Three Log Events Per Operation:** Started, Failure/Success (in catch), Success (always)
+3. **Two Log Events Per Operation:** Started, then Success or Failure
 4. **Email in Every Log:** `MyLogInfoKey.Username` = `settings.EmailAddress`
 5. **No State Mutation:** `BotService` has no mutable state; all state in dependencies
+6. **Unexpected Failures Recorded:** non-expected operation failures appear in `ExecutionReport.FailedOperations`
 
 ### Related Documentation
 

@@ -34,9 +34,9 @@
 
 | Change | Version | Migration |
 |--------|---------|-----------|
-| XPath/ID change | PATCH (if fix) / MINOR (if UI change) | Update constant in `HoneygainProcessor.cs` |
-| New selector added | MINOR | Add constant, update method |
-| Selector removed | MAJOR | Remove constant, update method |
+| XPath/ID change | PATCH (if fix) / MINOR (if UI change) | Update the selector property in `HoneygainProcessor.cs` |
+| New selector added | MINOR | Add property, update method |
+| Selector removed | MAJOR | Remove property, update method |
 
 ### Interfaces
 
@@ -52,7 +52,7 @@
 |--------|---------|-----------|
 | Add `LogInfoKey` | MINOR | Add to `MyLogInfoKey`, use in operations |
 | Change `Operation` name | PATCH | Update `MyOperation` constant |
-| Change log level for operation | PATCH | Update `BotService` catch block |
+| Change log level for operation | PATCH | Update `BotService.LogFailure` |
 
 ## Non-Breaking Changes
 
@@ -108,22 +108,25 @@ public sealed class BotSettings
 
 1. **Detect:** Test fails with `NoSuchElementException` or `WebDriverTimeoutException`
 2. **Inspect:** Open Honeygain dashboard manually, find new selector
-3. **Update:** Change constant in `HoneygainProcessor.cs`
-4. **Test:** Run unit tests (verify selector constants), run manual test
+3. **Update:** Change the selector property in `HoneygainProcessor.cs`
+4. **Test:** Run unit tests (they verify the selector properties), then run a manual test
 5. **Release:** PATCH version
 
-### Selector Constants
+### Selector Properties
 
 ```csharp
 // In HoneygainProcessor.cs
-private const string LoginUrl = "https://dashboard.honeygain.com/login";
-private const string CookieAcceptButtonId = "onetrust-accept-btn-handler";
-private const string EmailInputId = "email";
-private const string PasswordInputId = "password";
-private const string LoginButtonId = "login-btn";
-private const string DashboardIndicatorXPath = "//a[contains(@href, '/earnings')]";
-private const string ClaimRewardButtonXPath = "//button[contains(text(), 'Claim reward')]";
-private const string OpenLuckyPotButtonXPath = "//button[contains(text(), 'Open Lucky Pot')]";
+public static string HomePageUrl => "https://honeygain.com";
+public static string DashboardUrl => "https://dashboard.honeygain.com";
+public static string LogInUrl => $"{DashboardUrl}/login";
+
+private static string EmailAddressInputSelector => Select.ById("email");
+private static string PasswordInputSelector => Select.ById("password");
+private static string LogInButtonSelector => Select.ByXPath("//form/button");
+private static string DashboardReadySelector => Select.ById("traffic-legend-container");
+private static string CookiesConsentButtonSelector => Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]");
+private static string ClaimRewardButtonSelector => Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
+private static string OpenPotButtonSelector => Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
 ```
 
 ## Dependency Updates

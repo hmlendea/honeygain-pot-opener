@@ -86,25 +86,24 @@ The application **always attempts** all three operations. If no reward is availa
 - Continues to `OpenPot`
 - This is by design — single pass, best effort
 
-### Why does "Success" log appear after a failure?
+### Does a "Success" log appear after a failure?
 
-**By design.** Each operation logs:
+**No.** Each operation logs exactly one terminal event:
 1. `Started`
-2. `Failure` (in catch block) — with exception
-3. `Success` (always, after catch)
+2. `Success` when the processor call returns, or `Failure` when it throws (with the exception)
 
-**Success log ≠ operation succeeded.** Check for `Failure` log to detect errors.
+A `Success` entry is therefore reliable evidence that the operation completed.
 
 ### What if Honeygain changes their UI?
 
-Selectors in `HoneygainProcessor.cs` will break. Update the XPath/ID constants:
-- `CookieAcceptButtonId`
-- `EmailInputId`
-- `PasswordInputId`
-- `LoginButtonId`
-- `DashboardIndicatorXPath`
-- `ClaimRewardButtonXPath`
-- `OpenLuckyPotButtonXPath`
+Selectors in `HoneygainProcessor.cs` will break. Update the selector properties:
+- `EmailAddressInputSelector`
+- `PasswordInputSelector`
+- `LogInButtonSelector`
+- `DashboardReadySelector`
+- `CookiesConsentButtonSelector`
+- `ClaimRewardButtonSelector`
+- `OpenPotButtonSelector`
 
 Run tests to verify: `dotnet test`
 
@@ -142,7 +141,7 @@ Unhandled exception. Check exception details in log. Common causes:
 
 ### Exit code is non-zero
 
-Unguarded exception during startup (config, WebDriver init, DI). Check logs before `StartUp` entry.
+The process exits with code `1` when credentials are incomplete, `LogIn` or `OpenPot` fails, or a guarded exception occurs. Check the diagnostic output and logs; a missing `StartUp` entry indicates a failure before logging was configured.
 
 ## Security
 

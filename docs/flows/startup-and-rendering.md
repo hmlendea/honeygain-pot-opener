@@ -15,10 +15,7 @@ Operator/Scheduler
 └─────────────────────────────────────────────────────────────┘
     │
     ▼
-Program.Main(string[] args)
-    │
-    ├─► new BotSettings()
-    ├─► new DebugSettings()
+Program.Main()
     │
     ▼
 LoadConfiguration()
@@ -28,8 +25,15 @@ LoadConfiguration()
     ├─► Build()
     │
     ▼
+new BotSettings()
+new DebugSettings()
 config.Bind("BotSettings", botSettings)
 config.Bind("DebugSettings", debugSettings)
+    │
+    ▼
+botSettings.HasValidCredentials ?
+    │
+    ├─► false ──► Console.Error message → ExitCode 1 → return
     │
     ▼
 WebDriverInitialiser.InitialiseAvailableWebDriver(debugSettings.IsDebugMode)
@@ -64,23 +68,32 @@ logger.Info(Operation.StartUp, "Application started")
 try
     │
     ▼
-serviceProvider.GetService<IBotService>().Run()
+serviceProvider.GetRequiredService<IBotService>().Run()
     │
     ├─► BotService.Run()
     │   ├─► LogIn()
     │   ├─► ClaimReward()
     │   └─► OpenPot()
+    │   └─► ExecutionReport { IsSuccessful, FailedOperations }
+    │
+    ▼
+Environment.ExitCode = ResolveExitCode(report)
+    │
+    ├─► 0 when the report is successful
+    └─► 1 when an unexpected operation failed
     │
     ▼
 catch (AggregateException ex)
     │
     ├─► foreach innerException
     │   └─► logger.Fatal(Operation.Unknown, OperationStatus.Failure, innerException)
+    └─► Environment.ExitCode = 1
     │
     ▼
 catch (Exception ex)
     │
-    └─► logger.Fatal(Operation.Unknown, OperationStatus.Failure, ex)
+    ├─► logger.Fatal(Operation.Unknown, OperationStatus.Failure, ex)
+    └─► Environment.ExitCode = 1
     │
     ▼
 finally
@@ -88,7 +101,7 @@ finally
     └─► webDriver.Quit()
     │
     ▼
-Process Exit (code 0 unless unhandled exception)
+Process Exit (0 or 1)
 ```
 
 ## Detailed Steps
@@ -110,11 +123,13 @@ static IConfiguration LoadConfiguration() => new ConfigurationBuilder()
 
 **Bound Objects:**
 ```csharp
-BotSettings botSettings = new();      // { EmailAddress, Password }
+BotSettings botSettings = new();      // { EmailAddress, Password }, both default to string.Empty
 DebugSettings debugSettings = new();  // { IsDebugMode, IsHeadless }
 config.Bind(nameof(BotSettings), botSettings);
 config.Bind(nameof(DebugSettings), debugSettings);
 ```
+
+**Startup Validation:** When `botSettings.HasValidCredentials` is `false`, the process writes a diagnostic message to standard error, sets exit code 1, and returns before any browser is created.
 
 ### 2. WebDriver Initialisation
 
@@ -157,8 +172,8 @@ config.Bind(nameof(DebugSettings), debugSettings);
 ### 4. Startup Logging
 
 ```csharp
-logger = serviceProvider.GetService<ILogger>();
-logger.Info(Operation.StartUp, $"Application started");
+ILogger logger = serviceProvider.GetRequiredService<ILogger>();
+logger.Info(Operation.StartUp, "Application started");
 ```
 
 - **Operation:** `NuciLog.Core.Operation.StartUp` (built-in)
@@ -170,18 +185,18 @@ logger.Info(Operation.StartUp, $"Application started");
 ```csharp
 try
 {
-    serviceProvider.GetService<IBotService>().Run();
+    ExecutionReport report = serviceProvider.GetRequiredService<IBotService>().Run();
+    Environment.ExitCode = ResolveExitCode(report);
 }
-catch (AggregateException ex)
+catch (AggregateException exception)
 {
-    foreach (Exception innerException in ex.InnerExceptions)
-    {
-        logger.Fatal(Operation.Unknown, OperationStatus.Failure, innerException);
-    }
+    LogFatalExceptions(logger, exception);
+    Environment.ExitCode = FailureExitCode;
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    logger.Fatal(Operation.Unknown, OperationStatus.Failure, ex);
+    logger.Fatal(Operation.Unknown, OperationStatus.Failure, exception);
+    Environment.ExitCode = FailureExitCode;
 }
 finally
 {
@@ -189,23 +204,26 @@ finally
 }
 ```
 
-- **Guard Scope:** Only `IBotService.Run()` and service resolution
-- **Excluded from Guard:** Configuration loading, WebDriver initialisation, DI construction, logger resolution
+- **Guard Scope:** `IBotService.Run()`, exit-code assignment, and the `finally` cleanup
+- **Excluded from Guard:** Configuration loading, credential validation, WebDriver initialisation, DI construction, logger resolution
 - **Fatal Logging:** Uses `Operation.Unknown` (built-in) with `OperationStatus.Failure`
 - **Driver Cleanup:** Always executed in `finally`
+- **Exit Code:** Derived from `ExecutionReport.IsSuccessful`; `1` on any guarded exception
 
 ## Failure Scenarios
 
 | Phase | Failure | Result |
 |-------|---------|--------|
 | Config load | Invalid JSON | Exception → process crash (no logging) |
-| Config load | Missing file | Accepted (optional) → settings use defaults (null/false) |
-| Settings bind | Missing required values | Null/empty strings → failure at point of use |
+| Config load | Missing file | Accepted (optional) → settings use defaults (empty strings/false) |
+| Credential validation | Missing or blank email/password | Diagnostic message → exit code 1 → no browser created |
 | WebDriver init | No browser/driver | Exception → process crash (no DI, no logging) |
 | DI build | Missing registration | Exception → process crash |
 | Logger resolve | NuciLog misconfig | Exception → process crash |
-| Run() | Any exception | Caught → logged Fatal → driver quit → exit 0 |
-| Driver quit | Exception in finally | Suppressed (finally completes) |
+| Run() | Unexpected operation failure | Caught → recorded → driver quit → exit code 1 |
+| Run() | Expected reward absence only | `ClaimReward` not recorded → driver quit → exit code 0 |
+| Run() | Thrown exception | Caught → logged Fatal → driver quit → exit code 1 |
+| Driver quit | Exception in finally | Propagates after cleanup attempts |
 
 ## Configuration Requirements
 
@@ -240,12 +258,12 @@ finally
 
 ## Invariants
 
-1. **WebDriver created before DI** — fails fast on browser issues
+1. **Credentials validated before WebDriver** — no browser is created for incomplete credentials
 2. **Settings bound once** — no runtime reload
 3. **Single WebDriver instance** — created once, quit once
 4. **Startup logged before Run()** — `Operation.StartUp` always first log entry
-5. **Driver quit in finally** — guaranteed cleanup for guarded path
-6. **No exit code set** — process exits 0 on caught exceptions
+5. **Driver quit in finally** — guaranteed cleanup for the guarded path
+6. **Exit code set** — `0` on success, `1` on unexpected operation failure, guarded exception, or invalid credentials
 
 ## Related Documentation
 

@@ -1,8 +1,9 @@
+using System;
+
+using NuciWeb;
 using NuciWeb.Automation;
 
 using HoneygainPotOpener.Configuration;
-using System;
-using NuciWeb;
 
 namespace HoneygainPotOpener.Processors
 {
@@ -17,60 +18,75 @@ namespace HoneygainPotOpener.Processors
 
         public static string LogInUrl => $"{DashboardUrl}/login";
 
+        private static string EmailAddressInputSelector => Select.ById("email");
+
+        private static string PasswordInputSelector => Select.ById("password");
+
+        private static string LogInButtonSelector => Select.ByXPath("//form/button");
+
+        private static string DashboardReadySelector => Select.ById("traffic-legend-container");
+
+        private static string CookiesConsentButtonSelector
+            => Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]");
+
+        private static string ClaimRewardButtonSelector
+            => Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
+
+        private static string OpenPotButtonSelector
+            => Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
+
         public void LogIn()
         {
             webProcessor.GoToUrl(LogInUrl);
 
             AcceptCookiesIfNeeded();
 
-            string emailAddressInputSelector = Select.ById("email");
-            string passwordInputSelector = Select.ById("password");
-            string logInButtonSelector = Select.ByXPath("//form/button");
-            string trafficLegendContainerSelector = Select.ById("traffic-legend-container");
+            EnterCredentials();
 
-            webProcessor.SetText(emailAddressInputSelector, settings.EmailAddress);
-            webProcessor.SetText(passwordInputSelector, settings.Password);
-
-            webProcessor.Click(logInButtonSelector);
-            webProcessor.WaitForElementToBeVisible(trafficLegendContainerSelector);
+            webProcessor.Click(LogInButtonSelector);
+            webProcessor.WaitForElementToBeVisible(DashboardReadySelector);
         }
 
         public void ClaimReward()
         {
-            string claimRewardButtonSelector = Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
-
-            if (!webProcessor.IsElementVisible(claimRewardButtonSelector))
+            if (!webProcessor.IsElementVisible(ClaimRewardButtonSelector))
             {
-                throw new InvalidOperationException("There is no reward available to be claimed at this time.");
+                throw new InvalidOperationException(
+                    "There is no reward available to be claimed at this time.");
             }
 
-            webProcessor.Click(claimRewardButtonSelector);
+            webProcessor.Click(ClaimRewardButtonSelector);
         }
 
         public void OpenPot()
         {
-            string openPotButtonSelector = Select.ByXPath("//span[text()='Open Lucky Pot']/../../..");
+            webProcessor.WaitForElementToBeVisible(OpenPotButtonSelector);
 
-            webProcessor.WaitForElementToBeVisible(openPotButtonSelector);
-
-            if (!webProcessor.IsElementVisible(openPotButtonSelector))
+            if (!webProcessor.IsElementVisible(OpenPotButtonSelector))
             {
-                throw new InvalidOperationException("The Lucky Pot cannot be opened at this time.");
+                throw new InvalidOperationException(
+                    "The Lucky Pot cannot be opened at this time.");
             }
 
-            webProcessor.Click(openPotButtonSelector);
+            webProcessor.Click(OpenPotButtonSelector);
+        }
+
+        private void EnterCredentials()
+        {
+            webProcessor.SetText(EmailAddressInputSelector, settings.EmailAddress);
+            webProcessor.SetText(PasswordInputSelector, settings.Password);
         }
 
         private void AcceptCookiesIfNeeded()
         {
-            string acceptSelectedCookiesButtonSelector = Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]");
+            webProcessor.WaitForElementToBeVisible(CookiesConsentButtonSelector);
 
-            webProcessor.WaitForElementToBeVisible(acceptSelectedCookiesButtonSelector);
-
-            if (webProcessor.IsElementVisible(acceptSelectedCookiesButtonSelector))
+            if (!webProcessor.IsElementVisible(CookiesConsentButtonSelector))
             {
-                webProcessor.Click(acceptSelectedCookiesButtonSelector);
+                return;
             }
+
+            webProcessor.Click(CookiesConsentButtonSelector);
         }
     }
 }

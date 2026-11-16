@@ -15,13 +15,13 @@ This application is a **console application** with **no HTTP API, no controllers
 ```csharp
 public interface IBotService
 {
-    void Run();
+    ExecutionReport Run();
 }
 ```
 
 **Implementation:** `BotService`
 
-**Behaviour:** Orchestrates the three operations in fixed sequence: `LogIn()` → `ClaimReward()` → `OpenPot()`. Each operation logs Started, catches exceptions, logs Failure/Success, then logs Success unconditionally.
+**Behaviour:** Orchestrates the three operations in fixed sequence: `LogIn()` → `ClaimReward()` → `OpenPot()`. Each operation logs Started and then exactly one of Success or Failure. Unexpected failures (`LogIn`, `OpenPot`) are returned in `ExecutionReport.FailedOperations`; expected reward absence is logged as a warning and excluded from the report.
 
 **See:** [Components: Application Services](../components/application-services.md#ibotservice), [Flows: Startup and Rendering](../flows/startup-and-rendering.md)
 
@@ -54,17 +54,16 @@ public interface IHoneygainProcessor
 
 **Assembly:** NuciWeb.Automation (NuciWeb.Automation 1.0.0)
 **Namespace:** NuciWeb.Automation
-**Lifetime:** Singleton (registered in Program.cs)
+**Lifetime:** Transient (registered in Program.cs; retained by the singleton processor)
 
 ```csharp
 public interface IWebProcessor
 {
     void GoToUrl(string url);
-    void WaitForElementToBeVisible(By by, int timeoutSeconds = 10);
-    bool IsElementVisible(By by);
-    void SetText(By by, string text);
-    void Click(By by);
-    void DoubleClick(By by);
+    void WaitForElementToBeVisible(string selector);
+    bool IsElementVisible(string selector);
+    void SetText(string selector, string text);
+    void Click(string selector);
     void Quit();
 }
 ```
@@ -89,13 +88,37 @@ public sealed class BotSettings
 {
     public string EmailAddress { get; set; }
     public string Password { get; set; }
+
+    public bool HasValidCredentials { get; }
 }
 ```
 
 **Configuration Section:** `botSettings`
 **Binding:** One-time at startup, registered as singleton instance
+**Startup Validation:** `Program.Main` rejects a run when `HasValidCredentials` is `false`
 
 **See:** [Configuration](../configuration.md#botsettings)
+
+---
+
+### ExecutionReport
+
+**Assembly:** HoneygainPotOpener
+**Namespace:** HoneygainPotOpener.Service
+
+```csharp
+public sealed class ExecutionReport
+{
+    public IEnumerable<Operation> FailedOperations { get; set; }
+
+    public bool IsSuccessful { get; }
+}
+```
+
+**Lifetime:** Returned by `IBotService.Run()`; not registered in the container
+**Behaviour:** `FailedOperations` lists operations that failed unexpectedly. `IsSuccessful` is `true` when that collection is empty. `Program.ResolveExitCode` maps `IsSuccessful` to the process exit code.
+
+**See:** [Components: Application Services](../components/application-services.md#botservice)
 
 ---
 
@@ -202,18 +225,19 @@ public static class MyLogInfoKey
 **Used in:** `HoneygainProcessorTests`, `BotServiceTests`
 
 **Verified Interactions:**
-- `GoToUrl("https://dashboard.honeygain.com/login")`
-- `WaitForElementToBeVisible(By.Id("onetrust-accept-btn-handler"), 5)`
-- `SetText(By.Id("email"), email)`
-- `SetText(By.Id("password"), password)`
-- `Click(By.Id("login-btn"))`
-- `WaitForElementToBeVisible(By.XPath("//a[contains(@href, '/earnings')]"), 10)`
-- `IsElementVisible(By.XPath("//button[contains(text(), 'Claim reward')]"))`
-- `Click(By.XPath("//button[contains(text(), 'Claim reward')]"))`
-- `WaitForElementToBeVisible(By.XPath("//button[contains(text(), 'Open Lucky Pot')]"), 10)`
-- `IsElementVisible(By.XPath("//button[contains(text(), 'Open Lucky Pot')]"))`
-- `DoubleClick(By.XPath("//button[contains(text(), 'Open Lucky Pot')]"))`
-- `Quit()`
+- `GoToUrl(HoneygainProcessor.LogInUrl)`
+- `WaitForElementToBeVisible(Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]"))`
+- `IsElementVisible(Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]"))`
+- `Click(Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]"))`
+- `SetText(Select.ById("email"), email)`
+- `SetText(Select.ById("password"), password)`
+- `Click(Select.ByXPath("//form/button"))`
+- `WaitForElementToBeVisible(Select.ById("traffic-legend-container"))`
+- `IsElementVisible(Select.ByXPath("//span[text()='Claim reward']/../../../../../button"))`
+- `Click(Select.ByXPath("//span[text()='Claim reward']/../../../../../button"))`
+- `WaitForElementToBeVisible(Select.ByXPath("//span[text()='Open Lucky Pot']/../../.."))`
+- `IsElementVisible(Select.ByXPath("//span[text()='Open Lucky Pot']/../../.."))`
+- `Click(Select.ByXPath("//span[text()='Open Lucky Pot']/../../.."))`
 
 ### Mock<IHoneygainProcessor>
 

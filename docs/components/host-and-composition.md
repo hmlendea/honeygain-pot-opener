@@ -10,70 +10,93 @@ The composition root (`Program.cs`) is the single location where concrete implem
 
 1. **Configuration Loading** — Loads `appsettings.json` with optional file and change monitoring
 2. **Settings Binding** — Binds `BotSettings` and `DebugSettings` once at startup
-3. **WebDriver Initialisation** — Creates `IWebDriver` before DI container construction
-4. **Service Registration** — Registers all services with explicit lifetimes
-5. **Startup Logging** — Records `Operation.StartUp` via `NuciLogger`
-6. **Orchestration Invocation** — Resolves and calls `IBotService.Run()`
-7. **Error Handling** — Catches exceptions, logs fatal events
-8. **Resource Cleanup** — Calls `webDriver.Quit()` in `finally`
+3. **Credential Validation** — Rejects a run with incomplete credentials before creating a browser
+4. **WebDriver Initialisation** — Creates `IWebDriver` before DI container construction
+5. **Service Registration** — Registers all services with explicit lifetimes
+6. **Startup Logging** — Records `Operation.StartUp` via `NuciLogger`
+7. **Orchestration Invocation** — Resolves and calls `IBotService.Run()` and reads its `ExecutionReport`
+8. **Exit Code Assignment** — Sets `Environment.ExitCode` from the report outcome
+9. **Error Handling** — Catches exceptions, logs fatal events, and sets a failure exit code
+10. **Resource Cleanup** — Calls `webDriver.Quit()` in `finally`
 
 ### Code Walkthrough
 
 ```csharp
-static void Main(string[] args)
+private static void Main()
 {
-    // 1. Create settings objects (will be bound from config)
+    // 1. Load configuration
+    IConfiguration config = LoadConfiguration();
+
+    // 2. Create and bind settings objects
     BotSettings botSettings = new();
     DebugSettings debugSettings = new();
-
-    // 2. Load configuration
-    IConfiguration config = LoadConfiguration();
     config.Bind(nameof(BotSettings), botSettings);
     config.Bind(nameof(DebugSettings), debugSettings);
 
-    // 3. Initialise WebDriver BEFORE DI container
+    // 3. Reject incomplete credentials before starting a browser
+    if (!botSettings.HasValidCredentials)
+    {
+        Console.Error.WriteLine(
+            "The Honeygain account credentials are missing from the configuration.");
+        Environment.ExitCode = FailureExitCode;
+        return;
+    }
+
+    // 4. Initialise WebDriver BEFORE DI container
     IWebDriver webDriver = WebDriverInitialiser.InitialiseAvailableWebDriver(debugSettings.IsDebugMode);
 
-    // 4. Build DI container
-    IServiceProvider serviceProvider = new ServiceCollection()
-        .AddNuciLoggerSettings(config)           // NuciLog configuration
-        .AddSingleton(botSettings)               // Bound settings
-        .AddSingleton(debugSettings)
-        .AddSingleton<ILogger, NuciLogger>()     // Logging
-        .AddSingleton(webDriver)                 // Browser driver
-        .AddTransient<IWebProcessor, SeleniumWebProcessor>()  // Browser ops
-        .AddSingleton<IHoneygainProcessor, HoneygainProcessor>() // Honeygain adapter
-        .AddSingleton<IBotService, BotService>() // Orchestration
-        .BuildServiceProvider();
-
-    // 5. Resolve logger and record startup
-    logger = serviceProvider.GetService<ILogger>();
-    logger.Info(Operation.StartUp, $"Application started");
-
-    // 6. Run orchestration with error handling
     try
     {
-        serviceProvider.GetService<IBotService>().Run();
-    }
-    catch (AggregateException ex)
-    {
-        foreach (Exception innerException in ex.InnerExceptions)
-        {
-            logger.Fatal(Operation.Unknown, OperationStatus.Failure, innerException);
-        }
-    }
-    catch (Exception ex)
-    {
-        logger.Fatal(Operation.Unknown, OperationStatus.Failure, ex);
+        IServiceProvider serviceProvider = BuildServiceProvider(
+            config, botSettings, debugSettings, webDriver);
+
+        RunBot(serviceProvider);
     }
     finally
     {
-        // 7. Always quit driver
+        // 5. Always quit driver
         webDriver.Quit();
     }
 }
 
-static IConfiguration LoadConfiguration() => new ConfigurationBuilder()
+private static void RunBot(IServiceProvider serviceProvider)
+{
+    ILogger logger = serviceProvider.GetRequiredService<ILogger>();
+    logger.Info(Operation.StartUp, "Application started");
+
+    try
+    {
+        ExecutionReport report = serviceProvider.GetRequiredService<IBotService>().Run();
+        Environment.ExitCode = ResolveExitCode(report);
+    }
+    catch (AggregateException exception)
+    {
+        LogFatalExceptions(logger, exception);
+        Environment.ExitCode = FailureExitCode;
+    }
+    catch (Exception exception)
+    {
+        logger.Fatal(Operation.Unknown, OperationStatus.Failure, exception);
+        Environment.ExitCode = FailureExitCode;
+    }
+}
+
+private static IServiceProvider BuildServiceProvider(
+    IConfiguration config,
+    BotSettings botSettings,
+    DebugSettings debugSettings,
+    IWebDriver webDriver) => new ServiceCollection()
+        .AddNuciLoggerSettings(config)
+        .AddSingleton(botSettings)
+        .AddSingleton(debugSettings)
+        .AddSingleton<ILogger, NuciLogger>()
+        .AddSingleton(webDriver)
+        .AddTransient<IWebProcessor, SeleniumWebProcessor>()
+        .AddSingleton<IHoneygainProcessor, HoneygainProcessor>()
+        .AddSingleton<IBotService, BotService>()
+        .BuildServiceProvider();
+
+private static IConfiguration LoadConfiguration() => new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", true, true)  // optional, reloadOnChange
     .Build();
 ```
@@ -118,12 +141,13 @@ webDriver.Quit();
 - `IServiceProvider` not disposed — relies on process exit
 - Only `IWebDriver` explicitly cleaned up
 
-#### No Exit Code
+#### Exit Code Reflects Execution
 ```csharp
-static void Main(string[] args)  // void return
+Environment.ExitCode = ResolveExitCode(report);
 ```
-- Process exits 0 unless unhandled exception
-- Failures logged but not reflected in exit code
+- `0` when `ExecutionReport.IsSuccessful` is `true`
+- `1` when an unexpected operation failed or an exception escaped the guard
+- `1` when credentials are incomplete, reported before any browser is created
 
 ### Configuration Structure
 
@@ -174,8 +198,8 @@ No unit tests for `Program.cs` (static entry point). Integration testing would r
 | Change WebDriver initialisation | `Program.cs` before DI | Must happen before container; handle failures |
 | Add configuration section | `appsettings.json` + new settings class | Bind in `Program.cs`; register as singleton |
 | Change logger implementation | `Program.cs` `.AddSingleton<ILogger, NewLogger>()` | Must implement `NuciLog.Core.ILogger` |
-| Add command-line args | `Main(string[] args)` | Parse before config; override config values |
-| Set exit code on failure | `Main` return `int` | Requires tracking operation success/failure |
+| Add command-line args | `Main()` | Parse before config; override config values |
+| Change exit code policy | `Program.ResolveExitCode` | Update scheduler documentation with the codes |
 
 ### Related Documentation
 

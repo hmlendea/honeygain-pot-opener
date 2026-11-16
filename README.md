@@ -66,7 +66,7 @@ Populate the credential settings in `appsettings.json`, then execute one automat
 dotnet run --project HoneygainPotOpener/HoneygainPotOpener.csproj
 ```
 
-The application exits after the reward and Lucky Pot operations have been attempted.
+The application exits after the reward and Lucky Pot operations have been attempted. It returns exit code `0` when no unexpected operation fails; an unavailable reward is expected. Login, Lucky Pot, configuration, and guarded runtime failures return exit code `1`.
 
 ## ⚠️ Known Limitations
 
@@ -286,7 +286,7 @@ The repository contains detailed documentation for architecture, behaviour, conf
 |---------|----------------|------------|
 | Browser initialisation fails | No compatible browser and WebDriver can be initialised. | Install a compatible browser and corresponding WebDriver, then ensure they are accessible to the application. |
 | Authentication does not reach the dashboard | Credential placeholders remain, credentials are invalid, or Honeygain revised its login interface. | Verify `botSettings`, enable `debugSettings.isDebugMode`, and inspect the visible browser and logs. |
-| No reward is claimed | Honeygain does not present a claimable achievement reward. | No action is required; the application records a warning and continues to the Lucky Pot. |
+| No reward is claimed | Honeygain does not present a claimable achievement reward. | No action is required; the application records a warning, omits a success event for that operation, and continues to the Lucky Pot. |
 | The Lucky Pot is not opened | The pot is unavailable or Honeygain revised its dashboard interface. | Confirm availability in the dashboard, enable debug mode, and inspect the operation log. |
 
 ## ❓ FAQ

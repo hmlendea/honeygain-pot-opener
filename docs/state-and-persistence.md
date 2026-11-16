@@ -18,14 +18,15 @@ This application has **no persistent state**. It is a stateless, single-run cons
 | Service | Lifetime | State |
 |---------|----------|-------|
 | `ILogger` | Singleton | Internal buffers (NuciLog) |
-| `IWebProcessor` | Singleton | WebDriver session |
-| `IHoneygainProcessor` | Transient | None (stateless) |
-| `IBotService` | Singleton | None (stateless) |
+| `IWebDriver` | Singleton | Browser session |
+| `IWebProcessor` | Transient | None (retained by the singleton processor) |
+| `IHoneygainProcessor` | Singleton | None (stateless) |
+| `IBotService` | Singleton | None (stateless); returns a per-run `ExecutionReport` |
 
 ### WebDriver Session
 
-- Created at startup via `WebDriverInitialiser.Initialise()`
-- Wrapped by `SeleniumWebProcessor` (singleton)
+- Created at startup via `WebDriverInitialiser.InitialiseAvailableWebDriver(isDebugMode)`
+- Wrapped by `SeleniumWebProcessor`
 - **Ends at `driver.Quit()` in finally block**
 - No session persistence across runs
 - No cookie/file persistence (unless WebDriverInitialiser configures profile)

@@ -41,13 +41,10 @@ HoneygainProcessor.ClaimReward()
         Button clicked, reward claimed
             │
             ▼
-catch (Exception ex)
+catch (Exception exception)
     │
-    ▼
-logger.Warn(ClaimReward, Failure, ex, Username)  ← WARNING LEVEL
-    │
-    ▼
-logger.Info(ClaimReward, Success, Username)  ← ALWAYS LOGGED
+    ├─► logger.Warn(ClaimReward, Failure, exception, Username)  ← WARNING LEVEL
+    └─► return (expected failure, not recorded; success is not logged)
 ```
 
 ## Detailed Steps
@@ -114,30 +111,31 @@ webProcessor.Click(selector);
 - **Business logic failure** → `InvalidOperationException` (expected, not an error)
 - **Infrastructure failure** (element not found, click intercepted) → propagates from `IWebProcessor`
 
-### In BotService.ClaimReward()
+### In BotService.ExecuteOperation(ClaimReward)
 ```csharp
 try
 {
     processor.ClaimReward();
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    logger.Warn(MyOperation.ClaimReward, OperationStatus.Failure, ex, logInfos);  // WARNING
+    LogFailure(operation, exception, isFailureExpected: true, logInfos);  // WARNING
+    return;
 }
-logger.Info(MyOperation.ClaimReward, OperationStatus.Success, logInfos);
+logger.Info(operation, OperationStatus.Success, logInfos);
 ```
 
 - **All exceptions caught** — including `InvalidOperationException`
 - **Logged as Warn** — not an error condition; reward may simply not be available
-- **Success logged anyway** — unconditional after catch
+- **Not recorded as a run failure** — expected failures are excluded from `ExecutionReport.FailedOperations`, so the exit code stays `0`
+- **Success skipped on failure** — the method returns before the success event
 
 ### Log Events
 
 | Sequence | Level | Operation | Status | Context |
 |----------|-------|-----------|--------|---------|
 | 1 | Info | ClaimReward | Started | Username |
-| 2 | Warn | ClaimReward | Failure | Username + Exception (if failed) |
-| 3 | Info | ClaimReward | Success | Username |
+| 2 | Warn or Info | ClaimReward | Failure or Success | Username + Exception (when failed) |
 
 ## Failure Scenarios
 

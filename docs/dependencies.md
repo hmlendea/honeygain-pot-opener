@@ -175,12 +175,14 @@ services.AddNuciLoggerSettings(config)
 // Web automation
 services.AddSingleton<IWebProcessor>(sp =>
 {
-    var driver = WebDriverInitialiser.Initialise(debugSettings.IsHeadless);
+    IWebDriver webDriver = WebDriverInitialiser.InitialiseAvailableWebDriver(debugSettings.IsDebugMode);
     return new SeleniumWebProcessor(driver);
 });
 
 // Domain
 services.AddTransient<IHoneygainProcessor, HoneygainProcessor>();
+services.AddSingleton(webDriver);
+services.AddTransient<IWebProcessor, SeleniumWebProcessor>();
 services.AddSingleton<IBotService, BotService>();
 ```
 

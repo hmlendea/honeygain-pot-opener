@@ -138,17 +138,18 @@ sequenceDiagram
         Bot->>Logger: Record operation started
         Bot->>Processor: Invoke operation
         Processor->>Web: Navigate, inspect, populate, or click
-        Web->>Dashboard: Perform browser interaction
         alt Processor returns normally
             Processor-->>Bot: Return
+            Bot->>Logger: Record success
         else Processor raises an exception
             Processor-->>Bot: Exception
             Bot->>Logger: Record error or warning
+            Bot->>Bot: Record unexpected failure
         end
-        Bot->>Logger: Record operation success
     end
 
-    Bot-->>Program: Return
+    Bot-->>Program: Return ExecutionReport
+    Program->>Program: Set exit code from report
     Program->>Driver: Quit in finally
 ```
 
@@ -158,9 +159,9 @@ The principal runtime sequence is:
 3. The composition root registers settings, the WebDriver, logging, browser processing, Honeygain processing, and orchestration services, then records startup.
 4. `BotService.Run` invokes `LogIn`, `ClaimReward`, and `OpenPot` synchronously and in that fixed order.
 5. `HoneygainProcessor` translates each operation into `IWebProcessor` calls. Login navigates to the dashboard login page, handles cookie consent, submits credentials, and waits for dashboard content.
-6. `BotService` catches each processor exception, records it, and continues. Reward failures use warning severity; login and Lucky Pot failures use error severity.
-7. After each operation, `BotService` records success regardless of whether the operation previously raised an exception.
-8. When the guarded call to `BotService.Run` concludes or escapes, `Program` terminates the WebDriver in `finally`.
+6. `BotService` catches each processor exception, records it, and continues. Reward failures use warning severity and are expected; login and Lucky Pot failures use error severity and are included in the result.
+7. `BotService` records success only when an operation returns normally and returns an `ExecutionReport`.
+8. `Program` maps unexpected failures to exit code 1 and terminates the WebDriver in `finally`.
 
 ## 🧩 Components
 
@@ -209,7 +210,7 @@ flowchart LR
 
 | Interface or Integration | Direction | Contract | Owner | Failure Semantics |
 |--------------------------|-----------|----------|-------|-------------------|
-| Process entry point | Inbound | Operating-system process invocation; no application command-line options are defined | `Program` | Exceptions from the guarded orchestration call are logged as fatal, but no explicit non-zero exit code is assigned. Earlier startup exceptions are outside that guard. |
+| Process entry point | Inbound | Operating-system process invocation; no application command-line options are defined | `Program` | Incomplete credentials produce exit code 1 before browser creation; unexpected operation failures and guarded exceptions produce exit code 1. |
 | `appsettings.json` | Inbound | JSON sections for bot, debug, and NuciLog settings | `Program` and configuration binder | A missing file is accepted by the provider; absent values can fail at their point of use. Invalid JSON can terminate startup. |
 | Browser automation | Outbound | Synchronous `IWebProcessor` operations implemented by Selenium | `HoneygainProcessor` | Browser exceptions propagate to `BotService`, which records them and continues to the subsequent operation. |
 | Honeygain dashboard | Outbound | HTTPS web interface identified by configured URLs, element identifiers, and visible text | `HoneygainProcessor` | Missing reward and pot controls can become `InvalidOperationException`; other navigation and selector failures propagate from the automation library. No repository-defined retry exists. |
@@ -233,7 +234,7 @@ The local process-to-file boundary and the browser-to-Honeygain boundary are the
 
 NuciLog receives a startup information event and started, failure, and success events for `LogIn`, `ClaimReward`, and `OpenPot`. Operation events carry the configured e-mail address as `Username` context. The configured default activates file output at `./logfile.log` with minimum level `Info`.
 
-The repository defines no metrics, traces, health endpoint, audit store, correlation identifier beyond the account context, or automatic log-retention policy. Unconditional success events after caught failures limit the reliability of log-derived operation outcomes.
+The repository defines no metrics, traces, health endpoint, audit store, correlation identifier beyond the account context, or automatic log-retention policy. Operation terminal events are mutually exclusive: a successful operation logs `Success`, while a failed operation logs `Failure`.
 
 ### Configuration
 
@@ -308,7 +309,7 @@ Configuration and logs use paths relative to the working directory. There is no 
 | Persistent state | Local configuration and optional log output only | Operators own file protection, retention, and cleanup; no data migration exists. |
 | Network | Browser egress to the Honeygain HTTPS dashboard | Honeygain and browser availability determine runtime success. |
 | Shutdown | `IWebDriver.Quit` executes after the guarded orchestration path | Earlier startup failures can bypass the explicit cleanup path. |
-| Exit status | Caught orchestration exceptions are logged without assigning a non-zero process code | External schedulers cannot infer operation success solely from the exit status. |
+| Exit status | `ExecutionReport` maps unexpected operation failures and guarded exceptions to code 1; expected reward absence remains code 0 | External schedulers can distinguish a complete pass from an incomplete pass. |
 | Parallel invocation | No inter-process lock or coordination | Concurrent executions for an identical account are not an architectural guarantee. |
 
 ## 🛡️ Compatibility Contracts
@@ -324,9 +325,9 @@ Configuration and logs use paths relative to the working directory. There is no 
 
 ## ✅ Testing and Verification
 
-The repository currently contains no test project. The GitHub Actions workflow restores dependencies, compiles the project, and invokes `dotnet test`, but the test command does not execute a repository-owned suite. Compilation therefore provides the only automated verification currently present; browser interaction, selector compatibility, operation ordering, degradation, and resource cleanup require manual verification.
+The repository contains a unit-test project, an integration-test project that runs the real orchestration service and processor over mocked browser and logger boundaries, and an architecture-test project that enforces dependency direction and source-file conventions. The GitHub Actions workflow restores dependencies, compiles the solution, and invokes `dotnet test` against all three.
 
-Execute the principal automated verification with:
+Execute the automated verification with:
 
 ```bash
 dotnet restore
@@ -334,19 +335,19 @@ dotnet build --no-restore
 dotnet test --no-build --verbosity normal
 ```
 
-Manual architecture-sensitive verification requires an authorised Honeygain account and compatible browser environment. Execute with debug mode activated to inspect login, cookie-consent, reward-present, reward-absent, pot-available, pot-unavailable, and login-failure paths. Confirm that the browser terminates and inspect logs with cognisance that success events are emitted after caught failures.
+Automated coverage includes operation ordering, failure continuation, exclusive success or failure logging, exit-code derivation, configuration binding, selector construction, and dependency rules. Manual architecture-sensitive verification still requires an authorised Honeygain account and compatible browser environment. Execute with debug mode activated to inspect login, cookie-consent, reward-present, reward-absent, pot-available, pot-unavailable, and login-failure paths.
 
-Material coverage gaps include orchestration ordering, exception continuation, status accuracy, JSON binding, WebDriver cleanup, selector validity, browser-mode selection, and release-platform execution.
+Material coverage gaps include real WebDriver cleanup, live selector validity, browser-mode selection, and release-platform execution.
 
 ## ⚠️ Design Constraints
 
 - **Upstream Interface Coupling:** Honeygain element identifiers and visible text are embedded in `HoneygainProcessor`; dashboard revisions can interrupt operation without compile-time detection.
 - **Single-Pass Execution:** The synchronous workflow performs one account pass and exits; scheduling, queuing, parallelism, and retry policy are external concerns.
-- **Best-Effort Status Semantics:** Operation exceptions are recorded and suppressed, subsequent operations proceed, and success is then recorded unconditionally. Logs and process exit status do not provide a definitive success contract.
+- **Best-Effort Continuation:** Operation exceptions are recorded and suppressed, subsequent operations proceed, and expected reward absence does not fail the run. Success and failure log events are mutually exclusive.
 - **Plain-Text Secrets:** Credentials reside in local JSON because no secret-provider integration exists. Repository safety depends on operator file protection and source-control discipline.
-- **Partial Lifecycle Guard:** Configuration, driver initialisation, dependency composition, and logger resolution occur before the guarded `try`/`finally`, leaving an early-failure cleanup and diagnostic gap.
+- **Partial Lifecycle Guard:** Configuration, credential validation, driver initialisation, dependency composition, and logger resolution occur before the orchestration guard; invalid credentials are diagnosed before browser creation.
 - **Snapshot Configuration:** File change monitoring is activated, but bound bot and debug settings remain startup snapshots for the process lifetime.
-- **Absent Automated Coverage:** No repository-owned tests protect selectors, ordering, error semantics, or resource lifetime.
+- **Boundary-Mocked Coverage:** Unit, integration, and architecture tests protect ordering, error semantics, exit codes, and dependency rules, but real WebDriver cleanup and live selector validity require manual verification.
 
 ## 🔧 Extension Points
 

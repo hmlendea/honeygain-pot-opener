@@ -27,8 +27,8 @@
 
 | Key | Type | Required | Default | Description |
 |-----|------|----------|---------|-------------|
-| `emailAddress` | string | Yes | `null` | Honeygain account email |
-| `password` | string | Yes | `null` | Honeygain account password |
+| `emailAddress` | string | Yes | `string.Empty` | Honeygain account email |
+| `password` | string | Yes | `string.Empty` | Honeygain account password |
 
 #### debugSettings
 
@@ -107,7 +107,7 @@ config.Bind(nameof(DebugSettings), debugSettings);
 
 | Scenario | Result |
 |----------|--------|
-| Missing section | Properties remain default (`null`/`false`) |
+| Missing section | Properties remain default (`string.Empty`/`false`) |
 | Missing property | Property remains default |
 | Type mismatch | Binding error (exception at bind time) |
 | Extra properties in JSON | Ignored |
@@ -115,33 +115,18 @@ config.Bind(nameof(DebugSettings), debugSettings);
 
 ## Validation
 
-### Current: None
+### Current: Startup Credential Check
 
-- No data annotations on settings classes
-- No `IValidatableObject` implementation
-- No startup validation
-- Failures occur at **point of use** (e.g., `SetText` with null email)
+- No data annotations on settings classes and no `IValidatableObject` implementation
+- `BotSettings.HasValidCredentials` reports whether both credentials are non-blank
+- `Program.Main` evaluates the check after binding and before creating a browser
+- Incomplete credentials produce a diagnostic message on standard error, exit code 1, and no browser session
+- Other value-specific failures (for example, a malformed address or incorrect password) still surface at the point of use
 
-### Recommended Validation (Future)
+### Further Validation (Future)
 
 ```csharp
-// Option 1: Constructor validation
-public sealed class BotSettings
-{
-    public string EmailAddress { get; }
-    public string Password { get; }
-
-    public BotSettings(string emailAddress, string password)
-    {
-        EmailAddress = emailAddress ?? throw new ArgumentNullException(nameof(emailAddress));
-        Password = password ?? throw new ArgumentNullException(nameof(password));
-
-        if (!EmailAddress.Contains("@"))
-            throw new ArgumentException("Invalid email format", nameof(emailAddress));
-    }
-}
-
-// Option 2: IValidatableObject
+// Option 1: IValidatableObject
 public sealed class BotSettings : IValidatableObject
 {
     public string EmailAddress { get; set; }

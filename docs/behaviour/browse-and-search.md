@@ -240,19 +240,17 @@ All `IWebProcessor` methods can throw:
 ### Selector Update Process
 
 1. **Identify new selector** — Browser dev tools on Honeygain dashboard
-2. **Update inline selector** — In `HoneygainProcessor` method body
+2. **Update selector property** — In `HoneygainProcessor`
 3. **Update tests** — Modify `HoneygainProcessorTests` selector matching
 4. **Verify manually** — Run application with real credentials
 
-### Recommendation for Future
+### Selector Location
 
-Consider extracting selectors to constants or configuration for easier maintenance:
+Selectors are declared as private static properties on `HoneygainProcessor`, so a single revision updates every call site:
+
 ```csharp
-// Current: inline
-string selector = Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
-
-// Potential: constant
-private const string ClaimRewardButtonXPath = "//span[text()='Claim reward']/../../../../../button";
+private static string ClaimRewardButtonSelector
+    => Select.ByXPath("//span[text()='Claim reward']/../../../../../button");
 ```
 
 ## Related Documentation

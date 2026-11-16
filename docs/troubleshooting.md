@@ -17,10 +17,10 @@ OpenQA.Selenium.NoSuchElementException: no such element: Unable to locate elemen
 **Fixes:**
 1. Run with `debugSettings.isDebugMode: true` to watch browser
 2. Inspect element in browser DevTools
-3. Update selector constant in `HoneygainProcessor.cs`:
-   - `ClaimRewardButtonXPath`
-   - `OpenLuckyPotButtonXPath`
-   - `DashboardIndicatorXPath`
+3. Update the selector property in `HoneygainProcessor.cs`:
+   - `ClaimRewardButtonSelector`
+   - `OpenPotButtonSelector`
+   - `DashboardReadySelector`
 4. Run tests: `dotnet test`
 
 ### 2. "WebDriverTimeoutException" / Timeout Waiting for Element
@@ -237,16 +237,18 @@ Operation=OpenPot Status=Success Username="user@example.com"
 ```
 Operation=ClaimReward Status=Started Username="user@example.com"
 Operation=ClaimReward Status=Failure Username="user@example.com" Exception="InvalidOperationException: There is no reward available..."
-Operation=ClaimReward Status=Success Username="user@example.com"
 ```
+
+The run still exits with code `0`, because reward absence is expected.
 
 ### Error Pattern (Pot Not Available)
 
 ```
 Operation=OpenPot Status=Started Username="user@example.com"
 Operation=OpenPot Status=Failure Username="user@example.com" Exception="InvalidOperationException: The Lucky Pot cannot be opened..."
-Operation=OpenPot Status=Success Username="user@example.com"
 ```
+
+The run exits with code `1`, because pot opening is a primary objective.
 
 ### Fatal Pattern (Crash)
 

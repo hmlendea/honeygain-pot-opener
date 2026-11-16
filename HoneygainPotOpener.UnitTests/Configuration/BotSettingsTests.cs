@@ -8,12 +8,12 @@ namespace HoneygainPotOpener.UnitTests.Configuration
     public sealed class BotSettingsTests
     {
         [Test]
-        public void GivenDefaultConstructor_WhenCreatingInstance_ThenPropertiesAreNull()
+        public void GivenDefaultConstructor_WhenCreatingInstance_ThenPropertiesAreEmpty()
         {
             BotSettings settings = new BotSettings();
 
-            Assert.That(settings.EmailAddress, Is.Null);
-            Assert.That(settings.Password, Is.Null);
+            Assert.That(settings.EmailAddress, Is.Empty);
+            Assert.That(settings.Password, Is.Empty);
         }
 
         [Test]
@@ -43,6 +43,25 @@ namespace HoneygainPotOpener.UnitTests.Configuration
 
             Assert.That(settings.EmailAddress, Is.EqualTo("user@domain.com"));
             Assert.That(settings.Password, Is.EqualTo("password456"));
+        }
+
+        [TestCase("user@domain.com", "password456", true)]
+        [TestCase("user@domain.com", "", false)]
+        [TestCase("", "password456", false)]
+        [TestCase("   ", "password456", false)]
+        [TestCase("user@domain.com", "   ", false)]
+        public void GivenCredentials_WhenCheckingValidity_ThenItReflectsCredentialCompleteness(
+            string emailAddress,
+            string password,
+            bool expectedIsValid)
+        {
+            BotSettings settings = new BotSettings
+            {
+                EmailAddress = emailAddress,
+                Password = password
+            };
+
+            Assert.That(settings.HasValidCredentials, Is.EqualTo(expectedIsValid));
         }
     }
 }

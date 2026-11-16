@@ -74,13 +74,11 @@ HoneygainProcessor.LogIn()
     │   Dashboard loaded successfully
     │
     ▼
-catch (Exception ex)
+catch (Exception exception)
     │
-    ▼
-logger.Error(LogIn, Failure, ex, Username)
-    │
-    ▼
-logger.Info(LogIn, Success, Username)  ← ALWAYS LOGGED
+    ├─► logger.Error(LogIn, Failure, exception, Username)
+    ├─► failedOperations.Add(LogIn)
+    └─► return (success is not logged)
 ```
 
 ## Detailed Steps
@@ -136,7 +134,7 @@ webProcessor.SetText(Select.ById("password"), settings.Password);
 - **Selectors:** `#email`, `#password` (HTML `id` attributes)
 - **Method:** `IWebProcessor.SetText(selector, text)`
 - **Implementation:** Selenium `FindElement` → `Clear()` → `SendKeys(text)`
-- **No validation** — assumes fields exist and accept input
+- **Credential presence validation** happens before browser creation; this step assumes the existing fields accept the non-blank values
 
 ### 4. Login Button Click
 
@@ -177,30 +175,32 @@ webProcessor.WaitForElementToBeVisible(Select.ById("traffic-legend-container"));
 - All exceptions propagate to caller (`BotService.LogIn()`)
 - No try/catch in processor — failures are infrastructure or business logic
 
-### In BotService.LogIn()
+### In BotService.ExecuteOperation(LogIn)
 ```csharp
 try
 {
     processor.LogIn();
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    logger.Error(MyOperation.LogIn, OperationStatus.Failure, ex, logInfos);
+    LogFailure(operation, exception, isFailureExpected: false, logInfos);
+    failedOperations.Add(operation);
+    return;
 }
-logger.Info(MyOperation.LogIn, OperationStatus.Success, logInfos);
+logger.Info(operation, OperationStatus.Success, logInfos);
 ```
 
 - **All exceptions caught** — `Exception` base type
-- **Logged as Error** — `logger.Error(..., OperationStatus.Failure, ex, ...)`
-- **Success logged anyway** — unconditional after catch
+- **Logged as Error** — `isFailureExpected: false` selects `logger.Error`
+- **Recorded as failure** — `LogIn` is added to `ExecutionReport.FailedOperations`
+- **Success skipped on failure** — the method returns before the success event
 
 ### Log Events
 
 | Sequence | Level | Operation | Status | Context |
 |----------|-------|-----------|--------|---------|
 | 1 | Info | LogIn | Started | Username |
-| 2 | Error | LogIn | Failure | Username + Exception (if failed) |
-| 3 | Info | LogIn | Success | Username |
+| 2 | Error or Info | LogIn | Failure or Success | Username + Exception (when failed) |
 
 ## Failure Scenarios
 
@@ -237,10 +237,10 @@ logger.Info(MyOperation.LogIn, OperationStatus.Success, logInfos);
 
 | Change | Files to Modify | Testing |
 |--------|-----------------|---------|
-| Update login URL | `HoneygainProcessor.LogInUrl` constant | Manual verification |
-| Change email/password selectors | `HoneygainProcessor.LogIn()` inline selectors | Unit test: `GivenLogIn_WhenCalled_ThenSetsEmailAddress` |
-| Change login button selector | `HoneygainProcessor.LogIn()` inline selector | Unit test: `GivenLogIn_WhenCalled_ThenClicksLogInButton` |
-| Update dashboard landmark | `HoneygainProcessor.LogIn()` wait selector | Unit test: `GivenLogIn_WhenCalled_ThenWaitsForTrafficLegendContainer` |
+| Update login URL | `HoneygainProcessor.LogInUrl` property | Manual verification |
+| Change email/password selectors | `HoneygainProcessor.EmailAddressInputSelector`, `PasswordInputSelector` | Unit test: `GivenLogIn_WhenCalled_ThenSetsEmailAddress` |
+| Change login button selector | `HoneygainProcessor.LogInButtonSelector` | Unit test: `GivenLogIn_WhenCalled_ThenClicksLogInButton` |
+| Update dashboard landmark | `HoneygainProcessor.DashboardReadySelector` | Unit test: `GivenLogIn_WhenCalled_ThenWaitsForTrafficLegendContainer` |
 | Modify cookie consent logic | `HoneygainProcessor.AcceptCookiesIfNeeded()` | Unit test: `GivenLogIn_WhenCalled_ThenCallsAcceptCookiesIfNeeded` |
 | Add 2FA handling | New method in `IHoneygainProcessor` + `HoneygainProcessor` | New tests required |
 

@@ -86,7 +86,7 @@ BotService.Run()
     └─► OpenPot()        ← ~5-15 seconds
           ├─► WaitForElementToBeVisible
           ├─► IsElementVisible (double-check)
-          └─► DoubleClick
+          └─► Click
     │
     ▼
 WebDriver.Quit() (sync, blocking)  ← ~1-2 seconds
@@ -158,36 +158,14 @@ Process Exit
 
 | Exit Code | Meaning | Scheduler Action |
 |-----------|---------|------------------|
-| 0 | Completed (any operation success/failure) | Success — schedule next run |
-| Non-zero | Unguarded crash (config, WebDriver init) | Alert — investigate |
+| 0 | Completed with no unexpected operation failure (expected reward absence is not a failure) | Success — schedule next run |
+| 1 | Unexpected operation failure (`LogIn` or `OpenPot`), guarded exception, or incomplete credentials | Alert — investigate |
 
-**Current:** Always returns 0 (void Main) unless unguarded exception.
+**Current:** `Program.Main` assigns `Environment.ExitCode` from `ExecutionReport.IsSuccessful` and from the guarded exception handlers.
 
-### Recommended: Explicit Exit Codes
+### Rationale
 
-```csharp
-// Program.cs
-int exitCode = 0;
-try
-{
-    serviceProvider.GetService<IBotService>().Run();
-}
-catch (AggregateException ex)
-{
-    // ... log ...
-    exitCode = 2;  // Operation failures
-}
-catch (Exception ex)
-{
-    // ... log ...
-    exitCode = 1;  // Unexpected error
-}
-finally
-{
-    webDriver.Quit();
-}
-Environment.Exit(exitCode);
-```
+The exit code is derived from the `ExecutionReport` that `IBotService.Run` returns. `ClaimReward` failing is treated as an expected condition and does not affect the exit code, whereas `LogIn` and `OpenPot` failures do, because they represent an incomplete automation pass.
 
 ### Scheduler Health Checks
 

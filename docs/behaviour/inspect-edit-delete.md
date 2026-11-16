@@ -32,14 +32,17 @@ config.Bind(nameof(DebugSettings), debugSettings);
 ```csharp
 public sealed class BotSettings
 {
-    public string EmailAddress { get; set; }
-    public string Password { get; set; }
+    public string EmailAddress { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+
+    public bool HasValidCredentials
+        => !string.IsNullOrWhiteSpace(EmailAddress) && !string.IsNullOrWhiteSpace(Password);
 }
 ```
 
-- **Properties:** `EmailAddress`, `Password` (both nullable strings)
-- **Defaults:** `null` (not initialised)
-- **Validation:** None — null/empty fails at point of use
+- **Properties:** `EmailAddress`, `Password` (both non-nullable strings that default to empty), `HasValidCredentials` (computed)
+- **Defaults:** `string.Empty` (initialised)
+- **Validation:** `Program.Main` aborts with exit code 1 when `HasValidCredentials` is `false`
 - **Lifetime:** Singleton (registered as instance)
 
 #### DebugSettings
@@ -187,7 +190,7 @@ Set to empty strings or placeholders:
 
 Delete `appsettings.json` from working directory.
 
-**Result:** Configuration provider accepts missing file (optional); settings remain `null`/`false`; operations fail at point of use.
+**Result:** Configuration provider accepts missing file (optional); settings remain `string.Empty`/`false`; the credential check aborts the run with exit code 1 before a browser is created.
 
 ## Testing Configuration
 
@@ -221,7 +224,7 @@ No automated integration tests for configuration loading. Manual verification:
 1. **Configuration bound once** at startup
 2. **No runtime reload** — process restart required for changes
 3. **Single source** — `appsettings.json` only
-4. **No validation** — failures at point of use
+4. **Startup credential validation** — incomplete credentials abort before browser creation; other value failures surface at point of use
 5. **Password never logged** — only email in log context
 6. **DebugSettings.IsHeadless computed** — not bound from config
 

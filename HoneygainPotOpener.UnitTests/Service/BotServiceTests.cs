@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using NUnit.Framework;
+
 using Moq;
-using HoneygainPotOpener.Service;
-using HoneygainPotOpener.Processors;
+
+using NuciLog.Core;
+
 using HoneygainPotOpener.Configuration;
 using HoneygainPotOpener.Logging;
-using NuciLog.Core;
+using HoneygainPotOpener.Processors;
+using HoneygainPotOpener.Service;
 
 namespace HoneygainPotOpener.UnitTests.Service
 {
@@ -78,6 +82,15 @@ namespace HoneygainPotOpener.UnitTests.Service
         }
 
         [Test]
+        public void GivenRun_WhenAllSucceed_ThenReportsSuccess()
+        {
+            ExecutionReport report = botService.Run();
+
+            Assert.That(report.IsSuccessful, Is.True);
+            Assert.That(report.FailedOperations, Is.Empty);
+        }
+
+        [Test]
         public void GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues()
         {
             InvalidOperationException exception = new("Login failed");
@@ -91,23 +104,20 @@ namespace HoneygainPotOpener.UnitTests.Service
             mockLogger.Setup(l => l.Info(It.IsAny<Operation>(), It.IsAny<OperationStatus>(), It.IsAny<IEnumerable<LogInfo>>()))
                 .Callback<Operation, OperationStatus, IEnumerable<LogInfo>>((op, status, _) => loggedInfos.Add(Tuple.Create(op, status)));
 
-            botService.Run();
+            ExecutionReport report = botService.Run();
 
-            // Verify error is logged
             Assert.That(loggedErrors.Count, Is.EqualTo(1));
             Assert.That(loggedErrors[0].Item1.Name, Is.EqualTo("LogIn"));
             Assert.That(loggedErrors[0].Item2.Name, Is.EqualTo("Failure"));
             Assert.That(loggedErrors[0].Item3.Message, Is.EqualTo("Login failed"));
 
-            // Verify Success is also logged after error (actual behavior) - filter for LogIn operation
             List<Tuple<Operation, OperationStatus>> logInInfos = loggedInfos.Where(x => x.Item1.Name == "LogIn").ToList();
-            Assert.That(logInInfos.Count, Is.EqualTo(2));
-            Assert.That(logInInfos[0].Item1.Name, Is.EqualTo("LogIn"));
+            Assert.That(logInInfos.Count, Is.EqualTo(1));
             Assert.That(logInInfos[0].Item2.Name, Is.EqualTo("Started"));
-            Assert.That(logInInfos[1].Item1.Name, Is.EqualTo("LogIn"));
-            Assert.That(logInInfos[1].Item2.Name, Is.EqualTo("Success"));
 
-            // Verify it continues to other operations
+            Assert.That(report.IsSuccessful, Is.False);
+            Assert.That(report.FailedOperations.Select(operation => operation.Name), Is.EqualTo(new[] { "LogIn" }));
+
             mockProcessor.Verify(p => p.ClaimReward(), Times.Once);
             mockProcessor.Verify(p => p.OpenPot(), Times.Once);
         }
@@ -126,23 +136,20 @@ namespace HoneygainPotOpener.UnitTests.Service
             mockLogger.Setup(l => l.Info(It.IsAny<Operation>(), It.IsAny<OperationStatus>(), It.IsAny<IEnumerable<LogInfo>>()))
                 .Callback<Operation, OperationStatus, IEnumerable<LogInfo>>((op, status, _) => loggedInfos.Add(Tuple.Create(op, status)));
 
-            botService.Run();
+            ExecutionReport report = botService.Run();
 
-            // Verify warning is logged
             Assert.That(loggedWarnings.Count, Is.EqualTo(1));
             Assert.That(loggedWarnings[0].Item1.Name, Is.EqualTo("ClaimReward"));
             Assert.That(loggedWarnings[0].Item2.Name, Is.EqualTo("Failure"));
             Assert.That(loggedWarnings[0].Item3.Message, Is.EqualTo("No reward available"));
 
-            // Verify Success is also logged after warning (actual behavior) - filter for ClaimReward operation
             List<Tuple<Operation, OperationStatus>> claimRewardInfos = loggedInfos.Where(x => x.Item1.Name == "ClaimReward").ToList();
-            Assert.That(claimRewardInfos.Count, Is.EqualTo(2));
-            Assert.That(claimRewardInfos[0].Item1.Name, Is.EqualTo("ClaimReward"));
+            Assert.That(claimRewardInfos.Count, Is.EqualTo(1));
             Assert.That(claimRewardInfos[0].Item2.Name, Is.EqualTo("Started"));
-            Assert.That(claimRewardInfos[1].Item1.Name, Is.EqualTo("ClaimReward"));
-            Assert.That(claimRewardInfos[1].Item2.Name, Is.EqualTo("Success"));
 
-            // Verify it continues to other operations
+            Assert.That(report.IsSuccessful, Is.True);
+            Assert.That(report.FailedOperations, Is.Empty);
+
             mockProcessor.Verify(p => p.LogIn(), Times.Once);
             mockProcessor.Verify(p => p.OpenPot(), Times.Once);
         }
@@ -161,25 +168,36 @@ namespace HoneygainPotOpener.UnitTests.Service
             mockLogger.Setup(l => l.Info(It.IsAny<Operation>(), It.IsAny<OperationStatus>(), It.IsAny<IEnumerable<LogInfo>>()))
                 .Callback<Operation, OperationStatus, IEnumerable<LogInfo>>((op, status, _) => loggedInfos.Add(Tuple.Create(op, status)));
 
-            botService.Run();
+            ExecutionReport report = botService.Run();
 
-            // Verify error is logged
             Assert.That(loggedErrors.Count, Is.EqualTo(1));
             Assert.That(loggedErrors[0].Item1.Name, Is.EqualTo("OpenPot"));
             Assert.That(loggedErrors[0].Item2.Name, Is.EqualTo("Failure"));
             Assert.That(loggedErrors[0].Item3.Message, Is.EqualTo("Pot cannot be opened"));
 
-            // Verify Success is also logged after error (actual behavior) - filter for OpenPot operation
             List<Tuple<Operation, OperationStatus>> openPotInfos = loggedInfos.Where(x => x.Item1.Name == "OpenPot").ToList();
-            Assert.That(openPotInfos.Count, Is.EqualTo(2));
-            Assert.That(openPotInfos[0].Item1.Name, Is.EqualTo("OpenPot"));
+            Assert.That(openPotInfos.Count, Is.EqualTo(1));
             Assert.That(openPotInfos[0].Item2.Name, Is.EqualTo("Started"));
-            Assert.That(openPotInfos[1].Item1.Name, Is.EqualTo("OpenPot"));
-            Assert.That(openPotInfos[1].Item2.Name, Is.EqualTo("Success"));
 
-            // Verify it continues to other operations
+            Assert.That(report.IsSuccessful, Is.False);
+            Assert.That(report.FailedOperations.Select(operation => operation.Name), Is.EqualTo(new[] { "OpenPot" }));
+
             mockProcessor.Verify(p => p.LogIn(), Times.Once);
             mockProcessor.Verify(p => p.ClaimReward(), Times.Once);
+        }
+
+        [Test]
+        public void GivenRun_WhenLogInAndOpenPotThrow_ThenReportsEveryFailure()
+        {
+            mockProcessor.Setup(p => p.LogIn()).Throws(new InvalidOperationException("Login failed"));
+            mockProcessor.Setup(p => p.OpenPot()).Throws(new InvalidOperationException("Pot cannot be opened"));
+
+            ExecutionReport report = botService.Run();
+
+            Assert.That(report.IsSuccessful, Is.False);
+            Assert.That(
+                report.FailedOperations.Select(operation => operation.Name),
+                Is.EqualTo(new[] { "LogIn", "OpenPot" }));
         }
     }
 }

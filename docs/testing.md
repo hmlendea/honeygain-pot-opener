@@ -6,7 +6,7 @@
 
 | Layer | Count | Framework | Scope |
 |-------|-------|-----------|-------|
-| Unit | ~30 | NUnit 5 + Moq | Individual classes, mocked dependencies |
+| Unit | 44 | NUnit 5 + Moq | Individual classes, mocked dependencies |
 | Integration | 11 | NUnit 5 + Moq | JSON binding, dependency injection, and real service/processor pipeline |
 | E2E | 0 | — | Not implemented (requires live Honeygain) |
 
@@ -44,7 +44,7 @@ The [pipeline tests](../HoneygainPotOpener.IntegrationTests/Service/BotServiceTe
 - Navigation failure with continued reward and pot processing.
 - Reward-click failure with continued pot processing.
 - Pot-wait failure without subsequent inspection or click.
-- Failure severity and the current behaviour of emitting success after caught failures.
+- Failure severity and the rule that success is logged only for operations that completed.
 
 Run this suite independently with `dotnet test HoneygainPotOpener.IntegrationTests/HoneygainPotOpener.IntegrationTests.csproj`.
 
@@ -55,8 +55,9 @@ These are component integration tests, not real-WebDriver or live-dashboard test
 ### Configuration Tests
 
 **BotSettingsTests.cs**
-- `GivenDefaultConstructor_WhenCreatingInstance_ThenPropertiesAreNull`
-- `GivenValidValues_WhenSettingProperties_ThenPropertiesHoldValues`
+- `GivenDefaultConstructor_WhenCreatingInstance_ThenPropertiesAreEmpty`
+- Property assignment coverage for `EmailAddress`, `Password`, and combined assignment
+- `GivenCredentials_WhenCheckingValidity_ThenItReflectsCredentialCompleteness` — parameterised over valid, blank, and whitespace combinations
 
 **DebugSettingsTests.cs**
 - `GivenDefaultConstructor_WhenCreatingInstance_ThenIsDebugModeIsFalse`
@@ -87,11 +88,11 @@ These are component integration tests, not real-WebDriver or live-dashboard test
 - `GivenClaimReward_WhenButtonNotVisible_ThenThrowsInvalidOperationException`
 
 **OpenPot**
-- `GivenOpenPot_WhenButtonVisible_ThenWaitsAndDoubleClicks`
+- `GivenOpenPot_WhenButtonVisible_ThenClicksButton`
 - `GivenOpenPot_WhenButtonNotVisibleAfterWait_ThenThrowsInvalidOperationException`
 
 **Selectors Verification**
-- All XPath/ID selectors match HoneygainProcessor constants
+- All XPath/ID selectors match the `HoneygainProcessor` selector properties
 
 ### Service Tests (BotServiceTests.cs)
 
@@ -99,14 +100,19 @@ These are component integration tests, not real-WebDriver or live-dashboard test
 - `GivenRun_WhenCalled_ThenInvokesLogInThenClaimRewardThenOpenPotInOrder`
 
 **Error Handling**
-- `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinuesToClaimReward`
-- `GivenRun_WhenClaimRewardThrows_ThenLogsWarningAndContinuesToOpenPot`
-- `GivenRun_WhenOpenPotThrows_ThenLogsErrorAndCompletes`
+- `GivenRun_WhenLogInThrows_ThenLogsErrorAndContinues`
+- `GivenRun_WhenClaimRewardThrows_ThenLogsWarningAndContinues`
+- `GivenRun_WhenOpenPotThrows_ThenLogsErrorAndContinues`
+- `GivenRun_WhenLogInAndOpenPotThrow_ThenReportsEveryFailure`
 
 **Logging Verification**
-- Each operation logs Started, Failure/Success (in catch), Success (always)
+- Each operation logs Started, then exactly one of Success or Failure
 - Correct severity: LogIn=Error, ClaimReward=Warn, OpenPot=Error
 - Username LogInfo included in all operation logs
+
+**Outcome Verification**
+- `GivenRun_WhenAllSucceed_ThenReportsSuccess` — successful report with no failures
+- Unexpected failures appear in `ExecutionReport.FailedOperations`; expected reward absence does not
 
 ## Test Conventions
 
@@ -125,16 +131,20 @@ Examples:
 
 ```csharp
 // Arrange
-var mockWebProcessor = new Mock<IWebProcessor>();
-var mockLogger = new Mock<ILogger>();
-var processor = new HoneygainProcessor(mockWebProcessor.Object, mockLogger.Object);
+Mock<IWebProcessor> mockWebProcessor = new();
+BotSettings settings = new()
+{
+    EmailAddress = "test@example.com",
+    Password = "password123"
+};
+HoneygainProcessor processor = new(mockWebProcessor.Object, settings);
 
 // Act
 processor.LogIn();
 
 // Assert
-mockWebProcessor.Verify(p => p.GoToUrl("https://dashboard.honeygain.com/login"), Times.Once);
-mockWebProcessor.Verify(p => p.SetText(By.Id("email"), "test@example.com"), Times.Once);
+mockWebProcessor.Verify(p => p.GoToUrl(HoneygainProcessor.LogInUrl), Times.Once);
+mockWebProcessor.Verify(p => p.SetText(Select.ById("email"), settings.EmailAddress), Times.Once);
 ```
 
 ### Verification Patterns
@@ -188,7 +198,7 @@ dotnet test --filter "FullyQualifiedName~HoneygainProcessorTests"
 | `test@example.com` | Email in tests |
 | `password123` | Password in tests |
 | `https://dashboard.honeygain.com/login` | Login URL |
-| `//a[contains(@href, '/earnings')]` | Dashboard selector |
+| `#traffic-legend-container` | Dashboard readiness selector |
 
 ### No External Test Data
 

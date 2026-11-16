@@ -1,116 +1,76 @@
+using System;
+using System.Collections.Generic;
+
 using NuciLog.Core;
 
+using HoneygainPotOpener.Configuration;
 using HoneygainPotOpener.Logging;
 using HoneygainPotOpener.Processors;
-using System.Collections.Generic;
-using HoneygainPotOpener.Configuration;
-using System;
 
 namespace HoneygainPotOpener.Service
 {
-    public class BotService(
+    public sealed class BotService(
         IHoneygainProcessor processor,
         BotSettings settings,
         ILogger logger) : IBotService
     {
-        public void Run()
+        public ExecutionReport Run()
         {
-            LogIn();
-            ClaimReward();
-            OpenPot();
+            List<Operation> failedOperations = [];
+
+            ExecuteOperation(MyOperation.LogIn, processor.LogIn, false, failedOperations);
+            ExecuteOperation(MyOperation.ClaimReward, processor.ClaimReward, true, failedOperations);
+            ExecuteOperation(MyOperation.OpenPot, processor.OpenPot, false, failedOperations);
+
+            return new ExecutionReport { FailedOperations = failedOperations };
         }
 
-        void LogIn()
+        private void ExecuteOperation(
+            Operation operation,
+            Action action,
+            bool isFailureExpected,
+            List<Operation> failedOperations)
         {
             IEnumerable<LogInfo> logInfos =
             [
                 new(MyLogInfoKey.Username, settings.EmailAddress)
             ];
 
-            logger.Info(
-                MyOperation.LogIn,
-                OperationStatus.Started,
-                logInfos);
+            logger.Info(operation, OperationStatus.Started, logInfos);
 
             try
             {
-                processor.LogIn();
+                action();
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                logger.Error(
-                    MyOperation.LogIn,
-                    OperationStatus.Failure,
-                    ex,
-                    logInfos);
+                LogFailure(operation, exception, isFailureExpected, logInfos);
+
+                if (!isFailureExpected)
+                {
+                    failedOperations.Add(operation);
+                }
+
+                return;
             }
 
-            logger.Info(
-                MyOperation.LogIn,
-                OperationStatus.Success,
-                logInfos);
+            logger.Info(operation, OperationStatus.Success, logInfos);
         }
 
-        void ClaimReward()
+        private void LogFailure(
+            Operation operation,
+            Exception exception,
+            bool isFailureExpected,
+            IEnumerable<LogInfo> logInfos)
         {
-            IEnumerable<LogInfo> logInfos =
-            [
-                new(MyLogInfoKey.Username, settings.EmailAddress)
-            ];
-
-            logger.Info(
-                MyOperation.ClaimReward,
-                OperationStatus.Started,
-                logInfos);
-
-            try
+            if (isFailureExpected)
             {
-                processor.ClaimReward();
-            }
-            catch (Exception ex)
-            {
-                logger.Warn(
-                    MyOperation.ClaimReward,
-                    OperationStatus.Failure,
-                    ex,
-                    logInfos);
+                logger.Warn(operation, OperationStatus.Failure, exception, logInfos);
+
+                return;
             }
 
-            logger.Info(
-                MyOperation.ClaimReward,
-                OperationStatus.Success,
-                logInfos);
-        }
-
-        void OpenPot()
-        {
-            IEnumerable<LogInfo> logInfos =
-            [
-                new(MyLogInfoKey.Username, settings.EmailAddress)
-            ];
-
-            logger.Info(
-                MyOperation.OpenPot,
-                OperationStatus.Started,
-                logInfos);
-
-            try
-            {
-                processor.OpenPot();
-            }
-            catch (Exception ex)
-            {
-                logger.Error(
-                    MyOperation.OpenPot,
-                    OperationStatus.Failure,
-                    ex,
-                    logInfos);
-            }
-
-            logger.Info(
-                MyOperation.OpenPot,
-                OperationStatus.Success,
-                logInfos);
+            logger.Error(operation, OperationStatus.Failure, exception, logInfos);
         }
     }
 }

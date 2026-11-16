@@ -12,7 +12,6 @@ The "API" consists of internal service contracts used for dependency injection a
 
 ```csharp
 using HoneygainPotOpener.Configuration;
-using HoneygainPotOpener.Logging;
 using HoneygainPotOpener.Processors;
 using HoneygainPotOpener.Service;
 using Microsoft.Extensions.Configuration;
@@ -23,44 +22,60 @@ using NuciWeb.Automation.Selenium;
 using OpenQA.Selenium;
 
 // 1. Load configuration
-var config = new ConfigurationBuilder()
+IConfiguration config = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .Build();
 
-var botSettings = new BotSettings();
-var debugSettings = new DebugSettings();
+BotSettings botSettings = new();
+DebugSettings debugSettings = new();
 config.Bind(nameof(BotSettings), botSettings);
 config.Bind(nameof(DebugSettings), debugSettings);
 
-// 2. Initialise WebDriver
-var webDriver = WebDriverInitialiser.Initialise(debugSettings.IsHeadless);
+// 2. Reject incomplete credentials before creating a browser
+if (!botSettings.HasValidCredentials)
+{
+    Console.Error.WriteLine("The Honeygain account credentials are missing from the configuration.");
+    Environment.ExitCode = 1;
+    return;
+}
 
-// 3. Configure DI
-var services = new ServiceCollection();
-services.AddSingleton(botSettings);
-services.AddSingleton(debugSettings);
-services.AddNuciLoggerSettings(config).AddSingleton<ILogger, NuciLogger>();
-services.AddSingleton<IWebProcessor>(_ => new SeleniumWebProcessor(webDriver));
-services.AddTransient<IHoneygainProcessor, HoneygainProcessor>();
-services.AddSingleton<IBotService, BotService>();
+// 3. Initialise WebDriver
+IWebDriver webDriver = WebDriverInitialiser.InitialiseAvailableWebDriver(debugSettings.IsDebugMode);
 
-var serviceProvider = services.BuildServiceProvider();
+// 4. Configure DI
+IServiceProvider serviceProvider = new ServiceCollection()
+    .AddNuciLoggerSettings(config)
+    .AddSingleton(botSettings)
+    .AddSingleton(debugSettings)
+    .AddSingleton<ILogger, NuciLogger>()
+    .AddSingleton(webDriver)
+    .AddTransient<IWebProcessor, SeleniumWebProcessor>()
+    .AddSingleton<IHoneygainProcessor, HoneygainProcessor>()
+    .AddSingleton<IBotService, BotService>()
+    .BuildServiceProvider();
 
-// 4. Run
-var logger = serviceProvider.GetRequiredService<ILogger>();
+// 5. Run and derive the exit code from the execution report
+ILogger logger = serviceProvider.GetRequiredService<ILogger>();
+
 try
 {
-    logger.Info(Operation.StartUp, OperationStatus.Success);
-    serviceProvider.GetRequiredService<IBotService>().Run();
+    logger.Info(Operation.StartUp, "Application started");
+    ExecutionReport report = serviceProvider.GetRequiredService<IBotService>().Run();
+    Environment.ExitCode = report.IsSuccessful ? 0 : 1;
 }
-catch (AggregateException ex)
+catch (AggregateException exception)
 {
-    foreach (var inner in ex.InnerExceptions)
-        logger.Fatal(Operation.Unknown, OperationStatus.Failure, inner);
+    foreach (Exception innerException in exception.InnerExceptions)
+    {
+        logger.Fatal(Operation.Unknown, OperationStatus.Failure, innerException);
+    }
+
+    Environment.ExitCode = 1;
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    logger.Fatal(Operation.Unknown, OperationStatus.Failure, ex);
+    logger.Fatal(Operation.Unknown, OperationStatus.Failure, exception);
+    Environment.ExitCode = 1;
 }
 finally
 {
@@ -71,8 +86,8 @@ finally
 ### Using IHoneygainProcessor Directly
 
 ```csharp
-// Requires: IWebProcessor, ILogger
-var processor = new HoneygainProcessor(webProcessor, logger);
+// Requires: IWebProcessor, BotSettings
+HoneygainProcessor processor = new(webProcessor, botSettings);
 
 // Log in
 processor.LogIn();
@@ -91,15 +106,14 @@ processor.OpenPot();
 webProcessor.GoToUrl("https://example.com");
 
 // Wait for element
-webProcessor.WaitForElementToBeVisible(By.Id("my-element"), 10);
+webProcessor.WaitForElementToBeVisible(Select.ById("my-element"));
 
 // Check visibility
-if (webProcessor.IsElementVisible(By.Id("my-element")))
+if (webProcessor.IsElementVisible(Select.ById("my-element")))
 {
     // Interact
-    webProcessor.SetText(By.Id("input"), "text");
-    webProcessor.Click(By.Id("button"));
-    webProcessor.DoubleClick(By.Id("double-click-target"));
+    webProcessor.SetText(Select.ById("input"), "text");
+    webProcessor.Click(Select.ById("button"));
 }
 
 // Clean up
@@ -111,19 +125,24 @@ webProcessor.Quit();
 ### Mocking IWebProcessor
 
 ```csharp
-var mockWebProcessor = new Mock<IWebProcessor>();
-var mockLogger = new Mock<ILogger>();
+Mock<IWebProcessor> mockWebProcessor = new();
+BotSettings settings = new()
+{
+    EmailAddress = "test@example.com",
+    Password = "password123"
+};
 
-// Setup expectations
-mockWebProcessor.Setup(p => p.GoToUrl("https://dashboard.honeygain.com/login"));
-mockWebProcessor.Setup(p => p.WaitForElementToBeVisible(By.Id("onetrust-accept-btn-handler"), 5));
-mockWebProcessor.Setup(p => p.SetText(By.Id("email"), "test@example.com"));
-mockWebProcessor.Setup(p => p.SetText(By.Id("password"), "password123"));
-mockWebProcessor.Setup(p => p.Click(By.Id("login-btn")));
-mockWebProcessor.Setup(p => p.WaitForElementToBeVisible(By.XPath("//a[contains(@href, '/earnings')]"), 10));
+// Setup expectations using the processor selector properties
+mockWebProcessor.Setup(p => p.GoToUrl(HoneygainProcessor.LogInUrl));
+mockWebProcessor.Setup(p => p.WaitForElementToBeVisible(
+    Select.ByXPath("//img[@alt='cookie consent']/../div/button[2]")));
+mockWebProcessor.Setup(p => p.SetText(Select.ById("email"), settings.EmailAddress));
+mockWebProcessor.Setup(p => p.SetText(Select.ById("password"), settings.Password));
+mockWebProcessor.Setup(p => p.Click(Select.ByXPath("//form/button")));
+mockWebProcessor.Setup(p => p.WaitForElementToBeVisible(Select.ById("traffic-legend-container")));
 
 // Create processor
-var processor = new HoneygainProcessor(mockWebProcessor.Object, mockLogger.Object);
+HoneygainProcessor processor = new(mockWebProcessor.Object, settings);
 
 // Execute
 processor.LogIn();
@@ -136,18 +155,24 @@ mockWebProcessor.VerifyNoOtherCalls();
 ### Mocking IHoneygainProcessor
 
 ```csharp
-var mockProcessor = new Mock<IHoneygainProcessor>();
-var mockLogger = new Mock<ILogger>();
+Mock<IHoneygainProcessor> mockProcessor = new();
+Mock<ILogger> mockLogger = new();
+BotSettings botSettings = new()
+{
+    EmailAddress = "test@example.com",
+    Password = "password123"
+};
 
-var botService = new BotService(mockProcessor.Object, mockLogger.Object, botSettings);
+BotService botService = new(mockProcessor.Object, botSettings, mockLogger.Object);
 
 // Execute
-botService.Run();
+ExecutionReport report = botService.Run();
 
-// Verify sequence
+// Verify sequence and outcome
 mockProcessor.Verify(p => p.LogIn(), Times.Once);
 mockProcessor.Verify(p => p.ClaimReward(), Times.Once);
 mockProcessor.Verify(p => p.OpenPot(), Times.Once);
+Assert.That(report.IsSuccessful, Is.True);
 ```
 
 ## Configuration Usage
@@ -221,13 +246,14 @@ public class MyService
         try
         {
             // ... do work ...
-            _logger.Info(MyOperation.LogIn, OperationStatus.Success, logInfos);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.Error(MyOperation.LogIn, OperationStatus.Failure, ex, logInfos);
-            _logger.Info(MyOperation.LogIn, OperationStatus.Success, logInfos);  // Always
+            _logger.Error(MyOperation.LogIn, OperationStatus.Failure, exception, logInfos);
+            return;
         }
+
+        _logger.Info(MyOperation.LogIn, OperationStatus.Success, logInfos);
     }
 }
 ```
