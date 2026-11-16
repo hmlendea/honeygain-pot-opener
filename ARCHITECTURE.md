@@ -293,13 +293,13 @@ The principal dependency rules are:
 | `NuciLog` 1.2.0 and `NuciLog.Core` 2.6.0 | Supply structured operation logging | `Program` and `BotService` | Logging configuration and event semantics depend on NuciLog contracts. |
 | Honeygain dashboard | Supplies authentication, rewards, Lucky Pot state, and page structure | `HoneygainProcessor` through the browser | Upstream interface revisions can invalidate selectors without a compile-time signal. |
 | Local browser and WebDriver | Execute the automated web session | `IWebDriver` and `SeleniumWebProcessor` | A compatible local browser environment is necessary for runtime operation. |
-| Maintainer deployment script | Produces release artefacts through the remotely retrieved .NET 10 release helper | `release.sh` | Release execution depends on external mutable content and requires inspection before maintainer use. |
+| Maintainer release workflow | Produces the per-platform release artefacts through the remotely retrieved .NET release helper | `.github/workflows/github-release.yml` | Release execution depends on external mutable content and requires inspection before maintainer use. |
 
 ## 🚀 Deployment and Operations
 
 The deployment unit is a single console executable with `appsettings.json` copied beside the compiled output. Published archives target Linux, macOS, and Windows architectures. The application does not install a service, expose a network listener, or schedule itself; operators execute it directly or provide an external scheduler. Runtime egress is the browser-mediated Honeygain HTTPS session.
 
-Configuration and logs use paths relative to the working directory. There is no application-owned durable state requiring migration, replication, or restoration. One invocation controls one browser session and performs one account workflow. The release script delegates packaging to a remotely retrieved maintainer script rather than implementing publication within this repository.
+Configuration and logs use paths relative to the working directory. There is no application-owned durable state requiring migration, replication, or restoration. One invocation controls one browser session and performs one account workflow. The release workflow delegates packaging and publication to the GitHub Release event and a remotely retrieved maintainer script rather than implementing publication within this repository.
 
 | Concern | Current Design | Architectural Consequence |
 |---------|----------------|---------------------------|
@@ -378,7 +378,7 @@ The selected processor is retained by a singleton `HoneygainProcessor` during on
 | Structured logging identifiers | `Logging/` |
 | Runtime configuration | `appsettings.json` |
 | Continuous integration | `.github/workflows/dotnet.yml` |
-| Release delegation | `release.sh` |
+| Release packaging and publication | `.github/workflows/github-release.yml` |
 
 ## 📚 Related Documentation
 

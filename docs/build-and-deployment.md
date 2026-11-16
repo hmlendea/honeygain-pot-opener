@@ -274,37 +274,7 @@ jobs:
 
 ### Release Workflow (`.github/workflows/github-release.yml`)
 
-```yaml
-name: GitHub Release
-
-on:
-  push:
-    tags: ['v*']
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - name: Restore
-        run: dotnet restore HoneygainPotOpener.slnx
-      - name: Build and Publish (Linux)
-        run: dotnet publish HoneygainPotOpener/HoneygainPotOpener.csproj -c Release -r linux-x64 --self-contained -o ./publish/linux-x64
-      - name: Build and Publish (Windows)
-        run: dotnet publish HoneygainPotOpener/HoneygainPotOpener.csproj -c Release -r win-x64 --self-contained -o ./publish/win-x64
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ./publish/linux-x64/*
-            ./publish/win-x64/*
-```
+The workflow runs when a GitHub release is published. It determines the .NET version from `HoneygainPotOpener/HoneygainPotOpener.csproj`, retrieves the matching upstream release helper, creates archives for the supported runtime identifiers, and publishes `HoneygainPotOpener/bin/Release/honeygain-pot-opener_*` to the release with `softprops/action-gh-release@v2`. Review the remotely retrieved helper before relying on its behaviour.
 
 ## Verification
 

@@ -62,7 +62,7 @@ Honeygain Pot Opener is a .NET 10.0 console application that automates a single 
 |------|-------------|
 | [api-reference/INDEX.md](./api-reference/INDEX.md) | API reference index (no HTTP controllers; documents internal service contracts) |
 | [api-usage-examples.md](./api-usage-examples.md) | Example invocations, configuration, and log output |
-| [build-and-deployment.md](./build-and-deployment.md) | Build pipeline, release script, deployment artefacts, and environments |
+| [build-and-deployment.md](./build-and-deployment.md) | Build pipeline, release workflow, deployment artefacts, and environments |
 | [testing.md](./testing.md) | Test strategy, organisation, coverage, and conventions |
 | [change-guide.md](./change-guide.md) | How to modify common areas safely (selectors, settings, operations) |
 | [troubleshooting.md](./troubleshooting.md) | Common issues and solutions |
